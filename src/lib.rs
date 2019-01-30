@@ -8,3 +8,6 @@ mod three_mat;
 pub use three_mat::ThreeMat;
 pub use three_mat::ThreeVec;
 pub use three_mat::{radians_between, degrees_between};
+
+mod four_mat;
+pub use four_mat::FourVec;
