@@ -5,6 +5,7 @@ version = "0.1.0"
 authors = ["JTPond <jtpond42@gmail.com>"]
 edition = "2018"
 readme = "README.md"
+repository = "https://github.com/JTPond/calcify"
 license = "MIT OR Apache-2.0"
 keywords = ["linear algebra","vector","tensor","matrix","physics"]
 categories = ["science", "simulation"]
