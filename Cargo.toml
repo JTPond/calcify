@@ -1,10 +1,16 @@
 [package]
 name = "calcify"
+description = "Physics vector library"
 version = "0.1.0"
 authors = ["JTPond <jtpond42@gmail.com>"]
-edition = "2018"
+edition = "2019"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
+keywords = ["linear algebra","vector","tensor","matrix","physics"]
+categories = ["science", "simulation"]
 
 [dependencies]
 rand = "0.6.1"
+
+[badges]
+maintenance = { status = "actively-developed" }
