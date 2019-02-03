@@ -217,6 +217,7 @@ impl Neg for ThreeVec {
 /// let vec2 = ThreeVec::new(0.0,1.0,0.0);
 ///
 /// assert_eq!(radians_between(vec1,vec2),f64::consts::PI/2.0);
+/// ```
 pub fn radians_between(one: ThreeVec, other: ThreeVec) -> f64 {
     let dot = one*other;
     let r1 = (one*one).sqrt();
@@ -237,6 +238,7 @@ pub fn radians_between(one: ThreeVec, other: ThreeVec) -> f64 {
 /// let vec2 = ThreeVec::new(0.0,1.0,0.0);
 ///
 /// assert_eq!(degrees_between(vec1,vec2),90.0);
+/// ```
 pub fn degrees_between(one: ThreeVec, other: ThreeVec) -> f64 {
     let dot = one*other;
     let r1 = (one*one).sqrt();
