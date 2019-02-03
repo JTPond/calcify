@@ -1,5 +1,6 @@
 mod four_vec;
 pub use four_vec::C_LIGHT;
+pub use four_vec::Sinv;
 pub use four_vec::beta;
 pub use four_vec::gamma;
 pub use four_vec::FourVec;

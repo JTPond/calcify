@@ -15,6 +15,14 @@ pub use three_mat::{radians_between, degrees_between};
 /// The speed of light in a vacuum
 pub const C_LIGHT: f64 = 299_792_458.0;
 
+/// Variants of S space-time invariant
+#[derive(Debug, PartialEq)]
+pub enum Sinv {
+    TimeLike,
+    SpaceLike,
+    LightLike,
+}
+
 /// Beta factor, |v| over the speed pf light in a vacuum.
 /// Returns a Result<f64,&'static str> which contains an Ok(f64), or an error string.
 ///
@@ -87,6 +95,29 @@ impl FourVec {
         }
     }
 
+    /// Returns a new FourVec from one f64 and a ThreeVec
+    ///
+    /// # Arguments
+    ///
+    /// * `t` - f64
+    /// * `x` - calcify::ThreeVec
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::FourVec;
+    /// use calcify::ThreeVec;
+    ///
+    /// let vec4 = FourVec::from_3vec(1.0,ThreeVec::new(2.0,3.0,4.0));
+    /// ```
+    pub fn from_3vec(t: f64, x: ThreeVec) -> FourVec {
+        FourVec {
+            m0: t,
+            m1: *x.x0(),
+            m2: *x.x1(),
+            m3: *x.x2(),
+        }
+    }
+
     /// Returns a reference to the first element of the vector
     ///
     /// # Example
@@ -137,6 +168,47 @@ impl FourVec {
     /// ```
     pub fn m3(&self) -> &f64 {
         &self.m3
+    }
+
+    /// Returns the covariant vector with metric [1,-1,-1,-1].
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::FourVec;
+    /// let vec4 = FourVec::new(1.0,2.0,3.0,4.0);
+    /// let cov_vec4: FourVec = vec4.cov();
+    /// assert_eq!(cov_vec4,FourVec::new(1.0,-2.0,-3.0,-4.0));
+    ///
+    /// assert_eq!(vec4.cov()*vec4, -28.0)
+    /// ```
+    pub fn cov(self) -> FourVec {
+        FourVec {
+            m0: self.m0,
+            m1: -self.m1,
+            m2: -self.m2,
+            m3: -self.m3,
+        }
+    }
+
+    /// Returns the space-time invariant S^2 of a space-time vector.
+    /// Returns a variant of the calcify::Sinv enum
+    /// # Example
+    /// ```
+    /// use calcify::FourVec;
+    /// use calcify::Sinv;
+    /// let vec4 = FourVec::new(10.0,2.0,2.0,2.0);
+    /// let ss: Sinv = vec4.s2();
+    /// assert_eq!(ss,Sinv::TimeLike);
+    /// ```
+    pub fn s2(self) -> Sinv {
+        let ss: f64 = self.cov()*self;
+        if ss == 0.0 {
+            Sinv::LightLike
+        } else if ss > 0.0 {
+            Sinv::TimeLike
+        } else {
+            Sinv::SpaceLike
+        }
     }
 }
 
@@ -218,26 +290,21 @@ impl Mul<FourVec> for f64 {
 
 impl Mul<FourVec> for FourVec {
     type Output = f64;
-    /// Invariant product,
+    /// _Standard_ scalar product,
     ///
-    /// # Formula
-    ///
-    /// ```
-    /// //m_0*m^0 - (m_1*m^1 + m_2*m^2 + m_3*m^3)
-    /// ```
     /// # Example
     ///
     /// ```
     /// use calcify::FourVec;
-    /// let vec4 = FourVec::new(5.0,2.0,2.0,2.0);
+    /// let vec4 = FourVec::new(2.0,2.0,2.0,2.0);
     ///
     /// assert_eq!(
     ///    vec4*vec4,
-    ///    13.0
+    ///    16.0
     /// );
     /// ```
     fn mul(self, other: FourVec) -> f64 {
-        self.m0 * *other.m0() - (self.m1 * *other.m1() + self.m2 * *other.m2() + self.m3 * *other.m3())
+        self.m0 * *other.m0() + self.m1 * *other.m1() + self.m2 * *other.m2() + self.m3 * *other.m3()
     }
 }
 
@@ -264,6 +331,12 @@ mod tests {
         let v = 149_896_229.0;
         assert_eq!(beta(v).unwrap(),0.5);
         assert!(beta(10e10).is_err(),"Beta must be ltgt 1.0");
+    }
+
+    #[test]
+    fn test_invariant() {
+        let vec4 = FourVec::new(5.0,2.0,2.0,2.0);
+        assert_eq!(vec4.cov()*vec4,13.0);
     }
 
 }
