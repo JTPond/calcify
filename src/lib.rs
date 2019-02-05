@@ -13,6 +13,7 @@ pub use four_mat::Sinv;
 pub use four_mat::beta;
 pub use four_mat::gamma;
 pub use four_mat::FourVec;
+pub use four_mat::FourMat;
 
 pub use four_mat::ThreeMat;
 pub use four_mat::ThreeVec;
