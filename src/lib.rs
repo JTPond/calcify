@@ -3,8 +3,18 @@
 //!
 //! A crate for 3-D vector and matrix algebra, conceived for use in physics simulations. Builds out from a basic ThreeVec struct including most commonly used operations built in
 //!
-//! ## todo: Four-Vector and Four-Momentum
-mod three_mat;
-pub use three_mat::ThreeMat;
-pub use three_mat::ThreeVec;
-pub use three_mat::{radians_between, degrees_between};
+//! ## todo:
+//! Four-Momentum
+
+mod four_mat;
+
+pub use four_mat::C_LIGHT;
+pub use four_mat::Sinv;
+pub use four_mat::beta;
+pub use four_mat::gamma;
+pub use four_mat::FourVec;
+pub use four_mat::FourMat;
+
+pub use four_mat::ThreeMat;
+pub use four_mat::ThreeVec;
+pub use four_mat::{radians_between, degrees_between};
