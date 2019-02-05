@@ -113,8 +113,8 @@ impl FourMat {
         }
     }
 
-    /// Returns a new FourMat Lorentz Transformation tensor, which boosts into frame of
-    /// arbitrary velocity **v**
+    /// Returns a new FourMat Lorentz Transformation tensor inside a Result, which boosts into frame of
+    /// arbitrary velocity **v**. Each componant of **v** must be less than calcify::C_LIGHT.
     ///
     /// # Arguments
     ///
