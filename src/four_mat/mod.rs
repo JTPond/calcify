@@ -8,6 +8,17 @@ use std::fmt;
 
 mod four_vec;
 pub use four_vec::C_LIGHT;
+pub use four_vec::K_BOLTZ;
+pub use four_vec::E_CHARGE;
+pub use four_vec::Q_ALPHA;
+pub use four_vec::G_ALPHA;
+pub use four_vec::H_BAR;
+pub use four_vec::EP_NAUGHT;
+pub use four_vec::MU_NAUGHT;
+pub use four_vec::BIG_G;
+pub use four_vec::M_PROTON;
+pub use four_vec::M_ELECTRON;
+pub use four_vec::Consts;
 pub use four_vec::Sinv;
 pub use four_vec::beta;
 pub use four_vec::gamma;
@@ -111,47 +122,6 @@ impl FourMat {
             n2: FourVec::new(0.0,0.0,-1.0,0.0),
             n3: FourVec::new(0.0,0.0,0.0,-1.0),
         }
-    }
-
-    /// Returns a new FourMat Lorentz Transformation tensor inside a Result, which boosts into frame of
-    /// arbitrary velocity **v**. Each componant of **v** must be less than calcify::C_LIGHT.
-    ///
-    /// # Arguments
-    ///
-    /// * `v` - calcify::ThreeVec
-    ///
-    /// # Example
-    /// ```
-    /// use calcify::FourMat;
-    /// use calcify::ThreeVec;
-    ///
-    /// let vv = ThreeVec::random(100.0);
-    /// let mat4 = FourMat::lambda(vv);
-    ///
-    /// ```
-    pub fn lambda(v: ThreeVec) -> Result<FourMat,&'static str> {
-        let bx = beta(*v.x0())?;
-        let by = beta(*v.x1())?;
-        let bz = beta(*v.x2())?;
-        let gx = gamma(bx);
-        let gy = gamma(by);
-        let gz = gamma(bz);
-
-        let lx = FourMat::new(FourVec::new(gx,-gx*bx,0.0,0.0),
-                              FourVec::new(-gx*bx,gx,0.0,0.0),
-                              FourVec::new(0.0,0.0,1.0,0.0),
-                              FourVec::new(0.0,0.0,0.0,1.0));
-
-        let ly = FourMat::new(FourVec::new(gy,0.0,-gy*by,0.0),
-                              FourVec::new(0.0,1.0,0.0,0.0),
-                              FourVec::new(-gy*by,0.0,gy,0.0),
-                              FourVec::new(0.0,0.0,0.0,1.0));
-
-        let lz = FourMat::new(FourVec::new(gz,0.0,0.0,-gz*bz),
-                              FourVec::new(0.0,1.0,0.0,0.0),
-                              FourVec::new(0.0,0.0,1.0,0.0),
-                              FourVec::new(-gz*bz,0.0,0.0,gz));
-        Ok(lx*(ly*lz))
     }
 
     /// Returns a new FourMat one matrix
@@ -443,4 +413,38 @@ impl Neg for FourMat {
             n3: -self.n3,
         }
     }
+}
+
+/// Returns a FourVec, inside a Result, boosted into a frame of arbitrary velocity **v**.
+/// Each componant of **v** must be less than calcify::C_LIGHT.
+/// Uses a FourMat Lorentz Transformation tensor.
+/// # Arguments
+///
+/// * `initial` - calcify::FourVec
+/// * `v` - calcify::ThreeVec
+///
+/// # Example
+/// ```
+/// use calcify::boost;
+/// use calcify::FourVec;
+/// use calcify::ThreeVec;
+///
+/// let vv = ThreeVec::random(100.0);
+/// let vec4 = FourVec::new(10.0,1.0,1.0,1.0);
+/// let bVec = boost(vec4,vv);
+///
+/// ```
+pub fn boost(initial: FourVec, v: ThreeVec) -> Result<FourVec,&'static str> {
+    let bx = beta(*v.x0())?;
+    let by = beta(*v.x1())?;
+    let bz = beta(*v.x2())?;
+    let bb = bx*bx + by*by + bz*bz;
+    let g = gamma(beta((v*v).sqrt())?);
+
+    let ll = FourMat::new(FourVec::new(g,-g*bx,-g*by,-g*bz),
+                          FourVec::new(-g*bx,(g - 1.0)*(bx*bx)/bb + 1.0,(g - 1.0)*(bx*by)/bb,(g - 1.0)*(bx*bz)/bb),
+                          FourVec::new(-g*by,(g - 1.0)*(bx*by)/bb,(g - 1.0)*(by*by)/bb + 1.0,(g - 1.0)*(by*bz)/bb),
+                          FourVec::new(-g*bz,(g - 1.0)*(bx*bz)/bb,(g - 1.0)*(by*bz)/bb,(g - 1.0)*(bz*bz)/bb + 1.0));
+
+    Ok(ll*initial)
 }
