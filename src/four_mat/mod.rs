@@ -7,6 +7,7 @@ use std::ops::Neg;
 use std::fmt;
 
 mod four_vec;
+pub use four_vec::PI;
 pub use four_vec::C_LIGHT;
 pub use four_vec::K_BOLTZ;
 pub use four_vec::E_CHARGE;
@@ -418,6 +419,8 @@ impl Neg for FourMat {
 /// Returns a FourVec, inside a Result, boosted into a frame of arbitrary velocity **v**.
 /// Each componant of **v** must be less than calcify::C_LIGHT.
 /// Uses a FourMat Lorentz Transformation tensor.
+/// If **v** = [0,0,0], then the boost tensor will be an identity by definition.
+///
 /// # Arguments
 ///
 /// * `initial` - calcify::FourVec
@@ -433,6 +436,8 @@ impl Neg for FourMat {
 /// let vec4 = FourVec::new(10.0,1.0,1.0,1.0);
 /// let bVec = boost(vec4,vv);
 ///
+/// assert_eq!(boost(vec4,ThreeVec::new(0.0,0.0,0.0)).unwrap(),vec4);
+///
 /// ```
 pub fn boost(initial: FourVec, v: ThreeVec) -> Result<FourVec,&'static str> {
     let bx = beta(*v.x0())?;
@@ -440,11 +445,13 @@ pub fn boost(initial: FourVec, v: ThreeVec) -> Result<FourVec,&'static str> {
     let bz = beta(*v.x2())?;
     let bb = bx*bx + by*by + bz*bz;
     let g = gamma(beta((v*v).sqrt())?);
-
-    let ll = FourMat::new(FourVec::new(g,-g*bx,-g*by,-g*bz),
+    let mut ll = FourMat::eye();
+    if bb > 0.0 {
+        ll = FourMat::new(FourVec::new(g,-g*bx,-g*by,-g*bz),
                           FourVec::new(-g*bx,(g - 1.0)*(bx*bx)/bb + 1.0,(g - 1.0)*(bx*by)/bb,(g - 1.0)*(bx*bz)/bb),
                           FourVec::new(-g*by,(g - 1.0)*(bx*by)/bb,(g - 1.0)*(by*by)/bb + 1.0,(g - 1.0)*(by*bz)/bb),
                           FourVec::new(-g*bz,(g - 1.0)*(bx*bz)/bb,(g - 1.0)*(by*bz)/bb,(g - 1.0)*(bz*bz)/bb + 1.0));
+    }
 
     Ok(ll*initial)
 }

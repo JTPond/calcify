@@ -64,7 +64,18 @@ pub struct Consts {
 }
 
 impl Consts {
-    /// Return all calcify constants in a consts struct in Planck Lorentz–Heaviside units
+    /// Return all calcify constants in a Consts struct in Planck Lorentz–Heaviside units
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::Consts;
+    ///
+    /// let consts_planck = Consts::planck();
+    /// let c = consts_planck.c_light;
+    /// let hb = consts_planck.h_bar;
+    /// assert_eq!(c,1.0);
+    /// assert_eq!(hb,1.0);
+    /// ```
     pub fn planck() -> Consts {
         Consts {
             c_light : 1.0,
@@ -81,7 +92,7 @@ impl Consts {
         }
     }
 
-    /// Return all calcify constants in a consts struct in natural Lorentz–Heaviside units
+    /// Return all calcify constants in a Consts struct in natural Lorentz–Heaviside units
     pub fn natural() -> Consts {
         Consts {
             c_light : 1.0,

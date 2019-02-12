@@ -8,6 +8,7 @@
 
 mod four_mat;
 
+pub use four_mat::PI;
 pub use four_mat::C_LIGHT;
 pub use four_mat::K_BOLTZ;
 pub use four_mat::E_CHARGE;
