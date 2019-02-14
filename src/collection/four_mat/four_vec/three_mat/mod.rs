@@ -11,6 +11,9 @@ mod three_vec;
 pub use three_vec::ThreeVec;
 pub use three_vec::{radians_between, degrees_between};
 
+/// consts module
+pub mod consts;
+
 /// Three Matrix
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct ThreeMat {
