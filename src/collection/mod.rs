@@ -13,7 +13,12 @@ pub use four_mat::{radians_between, degrees_between};
 
 pub use four_mat::consts;
 
-/// collection
+/// A wrapper around the std::vec::vec
+///
+/// # Note
+/// * Collection only implements some basic functionality of real Vecs.
+/// The goal is not to supersede, but to add to.
+/// So you should use Vec in most cases, and wrap it in a Collection if you need one of those functions. 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Collection<T> {
     vec: Vec<T>,
