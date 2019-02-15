@@ -10,9 +10,8 @@ use std::fmt;
 mod three_vec;
 pub use three_vec::ThreeVec;
 pub use three_vec::{radians_between, degrees_between};
-
-/// consts module
-pub mod consts;
+pub use three_vec::consts;
+pub use three_vec::Serializable;
 
 /// Three Matrix
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -213,6 +212,16 @@ impl ThreeMat {
 impl fmt::Display for ThreeMat {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[{},\n{},\n{}]", self.r0(), self.r1(), self.r2())
+    }
+}
+
+impl Serializable for ThreeMat {
+    fn to_json(&self) -> String {
+        format!("{{\"r0\":{},\"r1\":{},\"r0\":{}}}",
+            self.r0().to_json(),
+            self.r1().to_json(),
+            self.r2().to_json()
+        )
     }
 }
 

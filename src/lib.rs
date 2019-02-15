@@ -29,3 +29,4 @@ pub use collection::ThreeVec;
 pub use collection::{radians_between, degrees_between};
 
 pub use collection::consts;
+pub use collection::Serializable;

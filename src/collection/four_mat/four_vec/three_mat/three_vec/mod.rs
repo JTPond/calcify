@@ -11,6 +11,12 @@ use std::fmt;
 use self::rand::thread_rng;
 use self::rand::distributions::{Distribution, Uniform};
 
+/// consts module
+pub mod consts;
+
+pub mod serializable;
+pub use serializable::Serializable;
+
 /// Three Vector
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct ThreeVec {
@@ -105,6 +111,12 @@ impl ThreeVec {
 impl fmt::Display for ThreeVec {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[{:.*}, {:.*}, {:.*}]", 5, self.x0(), 5, self.x1(), 5, self.x2())
+    }
+}
+
+impl Serializable for ThreeVec {
+    fn to_json(&self) -> String {
+        format!("{{\"x0\":{:.*},\"x1\":{:.*},\"x2\":{:.*}}}", 5, self.x0(), 5, self.x1(), 5, self.x2())
     }
 }
 

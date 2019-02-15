@@ -12,6 +12,7 @@ pub use three_mat::ThreeMat;
 pub use three_mat::ThreeVec;
 pub use three_mat::{radians_between, degrees_between};
 pub use three_mat::consts;
+pub use three_mat::Serializable;
 
 /// Variants of S space-time invariant
 #[derive(Debug, PartialEq)]
@@ -22,6 +23,7 @@ pub enum Sinv {
 }
 
 /// Beta factor, |v| over the speed pf light in a vacuum, in SI.
+///
 /// Returns a Result<f64,&'static str> which contains an Ok(f64), or an error string.
 ///
 /// # Arguments
@@ -216,6 +218,13 @@ impl fmt::Display for FourVec {
     }
 }
 
+impl Serializable for FourVec {
+    fn to_json(&self) -> String {
+        format!("{{\"m0\":{:.*},\"m1\":{:.*},\"m2\":{:.*},\"m3\":{:.*}}}",
+            5, self.m0(), 5, self.m1(), 5, self.m2(), 5, self.m3())
+    }
+}
+
 impl Add for FourVec {
     type Output = FourVec;
 
@@ -337,4 +346,9 @@ mod tests {
         assert_eq!(vec4.cov()*vec4,13.0);
     }
 
+    #[test]
+    fn test_json() {
+        let vec4 = FourVec::new(5.0,2.0,2.0,2.0);
+        assert_eq!(vec4.to_json(),"{\"m0\":5.00000,\"m1\":2.00000,\"m2\":2.00000,\"m3\":2.00000}");
+    }
 }

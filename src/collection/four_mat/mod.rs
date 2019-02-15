@@ -17,6 +17,7 @@ pub use four_vec::ThreeVec;
 pub use four_vec::{radians_between, degrees_between};
 
 pub use four_vec::consts;
+pub use four_vec::Serializable;
 
 /// Four Matrix
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -257,6 +258,17 @@ impl fmt::Display for FourMat {
     }
 }
 
+impl Serializable for FourMat {
+    fn to_json(&self) -> String {
+        format!("{{\"n0\":{},\"n1\":{},\"n2\":{},\"n3\":{}}}",
+            self.n0().to_json(),
+            self.n1().to_json(),
+            self.n2().to_json(),
+            self.n3().to_json()
+        )
+    }
+}
+
 impl Add for FourMat {
     type Output = FourMat;
 
@@ -406,6 +418,7 @@ impl Neg for FourMat {
 }
 
 /// Returns a FourVec, inside a Result, boosted into a frame of arbitrary velocity **v**.
+///
 /// Each componant of **v** must be less than calcify::C_LIGHT.
 /// Uses a FourMat Lorentz Transformation tensor.
 /// If **v** = [0,0,0], then the boost tensor will be an identity by definition.
