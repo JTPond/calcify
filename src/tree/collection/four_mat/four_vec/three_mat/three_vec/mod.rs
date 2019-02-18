@@ -106,6 +106,18 @@ impl ThreeVec {
     pub fn x2(&self) -> &f64 {
         &self.x2
     }
+
+    /// Returns the length of the vector
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::ThreeVec;
+    /// let vec3 = ThreeVec::new(1.0,0.0,0.0);
+    /// assert_eq!(vec3.r(),1.0);
+    /// ```
+    pub fn r(&self) -> f64 {
+        (*self**self).sqrt()
+    }
 }
 
 impl fmt::Display for ThreeVec {

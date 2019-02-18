@@ -13,20 +13,21 @@
 //!
 //! Four-Momentum
 
-mod collection;
+mod tree;
 
-pub use collection::Collection;
+pub use tree::Tree;
+pub use tree::Collection;
 
-pub use collection::Sinv;
-pub use collection::beta;
-pub use collection::gamma;
-pub use collection::boost;
-pub use collection::FourVec;
-pub use collection::FourMat;
+pub use tree::Sinv;
+pub use tree::beta;
+pub use tree::gamma;
+pub use tree::boost;
+pub use tree::FourVec;
+pub use tree::FourMat;
 
-pub use collection::ThreeMat;
-pub use collection::ThreeVec;
-pub use collection::{radians_between, degrees_between};
+pub use tree::ThreeMat;
+pub use tree::ThreeVec;
+pub use tree::{radians_between, degrees_between};
 
-pub use collection::consts;
-pub use collection::Serializable;
+pub use tree::consts;
+pub use tree::Serializable;

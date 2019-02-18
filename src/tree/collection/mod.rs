@@ -1,3 +1,5 @@
+use std::iter::FromIterator;
+
 mod four_mat;
 
 pub use four_mat::Sinv;
@@ -83,6 +85,10 @@ impl<T: Serializable> Collection<T> {
 
     /// Push new T: Serializable into Collection
     ///
+    /// # Arguments
+    ///
+    /// * `nn` - T: Serializable
+    ///
     /// # Example
     /// ```
     /// use calcify::FourVec;
@@ -94,12 +100,70 @@ impl<T: Serializable> Collection<T> {
     pub fn push(&mut self, nn: T) {
         self.vec.push(nn);
     }
+
+    /// Maps a function and returns a new Collection<T>
+    ///
+    /// Implements Vec::iter::map and Vec::iter::collect.
+    ///
+    /// # Arguments
+    ///
+    /// * `close` - F: FnMut(&T: Serializable) -> Z: Serializable
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::FourVec;
+    /// use calcify::Collection;
+    ///
+    /// let mut col4V: Collection<FourVec> = Collection::empty();
+    /// for _i in 0..9999 {
+    ///     col4V.push(FourVec::new(1.0,0.0,0.0,0.0));
+    /// }
+    /// let mut mass_col4V: Collection<f64> = Collection::empty();
+    /// for _i in 0..9999 {
+    ///     mass_col4V.push(1.0);
+    /// }
+    /// assert_eq!(col4V.map(FourVec::s), mass_col4V);
+    pub fn map<F,Z: Serializable>(&self, close: F) -> Collection<Z> where
+        F: FnMut(&T) -> Z{
+        Collection {
+            vec: self.vec.iter().map(close).collect(),
+        }
+    }
 }
 
 impl<T: Serializable> Serializable for Collection<T> {
     fn to_json(&self) -> String {
         let str_vec: Vec<String> = self.vec.iter().map(|x| x.to_json()).collect();
         format!("[{}]",str_vec.join(","))
+    }
+}
+
+impl<T: Serializable> FromIterator<T> for Collection<T> {
+    fn from_iter<I: IntoIterator<Item=T>>(iter: I) -> Self {
+        let mut c = Collection::empty();
+        for i in iter {
+            c.push(i);
+        }
+        c
+    }
+}
+
+impl Serializable for u64 {
+    fn to_json(&self) -> String {
+        format!("{}",self)
+    }
+}
+
+impl Serializable for f64 {
+    fn to_json(&self) -> String {
+        format!("{:.*}",5,self)
+    }
+}
+
+/// Wraps the String in quotes("").
+impl Serializable for String {
+    fn to_json(&self) -> String {
+        format!("\"{}\"",self)
     }
 }
 
@@ -111,13 +175,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_map() {
+        let mut col3V = Collection::empty();
+            for _i in 0..9999 {
+                col3V.push(ThreeVec::random(10.0));
+            }
+        let _len_col: Collection<f64> = col3V.map(ThreeVec::r);
+    }
+
+    #[test]
     fn test_json() {
         let f = File::create("test_out.json").unwrap();
         let mut wr = BufWriter::new(f);
-        let mut col4V = Collection::empty();
+        let mut col3V = Collection::empty();
         for _i in 0..9999 {
-            col4V.push(ThreeVec::random(10.0));
+            col3V.push(ThreeVec::random(10.0));
         }
-        wr.write(col4V.to_json().as_bytes()).unwrap();
+        wr.write(col3V.map(ThreeVec::r).to_json().as_bytes()).unwrap();
     }
 }

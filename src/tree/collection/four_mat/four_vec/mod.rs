@@ -190,7 +190,7 @@ impl FourVec {
         }
     }
 
-    /// Returns the space-time invariant S^2 of a space-time vector.
+    /// Returns the space-time invariant *classification* S^2 of a space-time vector.
     /// Returns a variant of the calcify::Sinv enum
     /// # Example
     /// ```
@@ -200,8 +200,8 @@ impl FourVec {
     /// let ss: Sinv = vec4.s2();
     /// assert_eq!(ss,Sinv::TimeLike);
     /// ```
-    pub fn s2(self) -> Sinv {
-        let ss: f64 = self.cov()*self;
+    pub fn s2(&self) -> Sinv {
+        let ss: f64 = self.cov()**self;
         if ss == 0.0 {
             Sinv::LightLike
         } else if ss > 0.0 {
@@ -210,6 +210,19 @@ impl FourVec {
             Sinv::SpaceLike
         }
     }
+
+    /// Returns the invariant of the FourVec.
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::FourVec;
+    /// let vec4 = FourVec::new(1.0,0.0,0.0,0.0);
+    /// assert_eq!(vec4.s(),1.0);
+    /// ```
+    pub fn s(&self) -> f64 {
+        (self.cov()**self).sqrt()
+    }
+
 }
 
 impl fmt::Display for FourVec {

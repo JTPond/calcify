@@ -6,11 +6,13 @@
 
 * All physics constants are exported in the top in SI units. To retrieve them in Planck or natural units call calcify::Consts::planck() or calcify::Consts::natural().
 
-* FourMat::lambda() has been replaced by fn boost(initial: FourVec, v: ThreeVec). The math has been changed. 
+* FourMat::lambda() has been replaced by fn boost(initial: FourVec, v: ThreeVec). The math has been changed.
 
 ## todo
 
-Four-Momentum
+* from_json
+* to_bytes
+* Four-Momentum
 
 ## License
 
