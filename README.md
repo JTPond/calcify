@@ -4,6 +4,8 @@
 
 ## Notes
 
+* Don't put anything in a Tree that you want back. Trees are *only* for saving to files. Once a branch is added all of its implementations are lost, except for "Serializable".
+
 * All physics constants are exported in the top in SI units. To retrieve them in Planck or natural units call calcify::Consts::planck() or calcify::Consts::natural().
 
 * FourMat::lambda() has been replaced by fn boost(initial: FourVec, v: ThreeVec). The math has been changed.

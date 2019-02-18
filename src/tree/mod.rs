@@ -18,10 +18,25 @@ pub use collection::{radians_between, degrees_between};
 pub use collection::consts;
 pub use collection::Serializable;
 
+/// Branch
+struct Branch {
+    subtype: String,
+    branch: Box<dyn Serializable>,
+}
+
 /// Tree of Collections for saving to a file.
 pub struct Tree {
-    pub metadata: HashMap<&'static str,&'static str>,
-    pub branches: HashMap<&'static str,Box<Serializable>>,
+    metadata: HashMap<&'static str,&'static str>,
+    branches: HashMap<&'static str,Branch>,
+}
+
+impl Branch {
+    pub fn new(subtype: String, branch: Box<dyn Serializable>) -> Branch{
+        Branch {
+            subtype,
+            branch,
+        }
+    }
 }
 
 impl Tree {
@@ -38,13 +53,13 @@ impl Tree {
     /// use calcify::Collection;
     /// use calcify::ThreeVec;
     ///
-    /// let fCol: Collection<f64> = Collection::from_vec(vec![0.0,0.0]);
-    /// let mut v3Col: Collection<ThreeVec> = Collection::empty();
-    /// for _i in 0..9 {v3Col.push(ThreeVec::random(1.0));}
+    /// let f_col: Collection<f64> = Collection::from_vec(vec![0.0,0.0]);
+    /// let mut v3_col: Collection<ThreeVec> = Collection::empty();
+    /// for _i in 0..9 {v3_col.push(ThreeVec::random(1.0));}
     /// let mut ttree = Tree::new("Test_Tree");
     /// ttree.add_field("Desc", "This is a Tree for testing.");
-    /// ttree.add_branch("fCol", fCol);
-    /// ttree.add_branch("v3Col", v3Col);
+    /// ttree.add_branch("fCol", f_col, "f64");
+    /// ttree.add_branch("v3Col", v3_col, "ThreeVec");
     /// ```
     pub fn new(name: &'static str) -> Tree {
         let mut md = HashMap::new();
@@ -60,39 +75,19 @@ impl Tree {
         self.metadata.insert(key,f);
     }
 
-    pub fn add_branch<T: 'static + Serializable>(&mut self, key: &'static str, b: Collection<T>) {
-        self.branches.insert(key,Box::new(b));
+    pub fn add_branch<T: 'static + Serializable>(&mut self, key: &'static str, b: Collection<T>, t: &'static str) {
+        let br = Branch::new(String::from(t),Box::new(b));
+        self.branches.insert(key,br);
+    }
+}
+
+impl Serializable for Branch {
+    fn to_json(&self) -> String {
+        format!("{{\"branch\":{},\"subtype\":{}}}",self.branch.to_json(),self.subtype.to_json())
     }
 }
 
 impl Serializable for Tree {
-    /// Returns Json encoded String representation of the tree
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use std::io::prelude::*;
-    /// use std::io::BufWriter;
-    /// use std::fs::File;
-    ///
-    /// use calcify::Tree;
-    /// use calcify::Collection;
-    /// use calcify::ThreeVec;
-    ///
-    /// let f = File::create("test_tree.json").unwrap();
-    /// let mut wr = BufWriter::new(f);
-    ///
-    /// let fCol: Collection<f64> = Collection::from_vec(vec![0.0,0.0]);
-    /// let mut v3Col: Collection<ThreeVec> = Collection::empty();
-    /// for _i in 0..9 {v3Col.push(ThreeVec::random(1.0));}
-    ///
-    /// let mut ttree = Tree::new("Test_Tree");
-    /// ttree.add_field("Desc", "This is a Tree for testing.");
-    /// ttree.add_branch("fCol", fCol);
-    /// ttree.add_branch("v3Col", v3Col);
-    ///
-    /// wr.write(ttree.to_json().as_bytes()).unwrap();
-    /// ```
     fn to_json(&self) -> String {
         let mut out = String::from("{");
         for (key, val) in &self.metadata {
@@ -124,8 +119,8 @@ mod tests {
         for _i in 0..9 {v3Col.push(ThreeVec::random(1.0));}
         let mut ttree = Tree::new("Test_Tree");
         ttree.add_field("Desc", "This is a Tree for testing.");
-        ttree.add_branch("fCol", fCol);
-        ttree.add_branch("v3Col", v3Col);
+        ttree.add_branch("fCol", fCol, "f64");
+        ttree.add_branch("v3Col", v3Col, "ThreeVec");
         wr.write(ttree.to_json().as_bytes()).unwrap();
     }
 }
