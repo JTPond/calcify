@@ -5,6 +5,8 @@ use std::ops::SubAssign;
 use std::ops::Mul;
 use std::ops::Neg;
 use std::fmt;
+use std::str::FromStr;
+use std::num::ParseFloatError;
 
 /// Three Vector Module
 mod three_vec;
@@ -217,11 +219,31 @@ impl fmt::Display for ThreeMat {
 
 impl Serializable for ThreeMat {
     fn to_json(&self) -> String {
-        format!("{{\"r0\":{},\"r1\":{},\"r0\":{}}}",
+        format!("{{\"r0\":{},\"r1\":{},\"r2\":{}}}",
             self.r0().to_json(),
             self.r1().to_json(),
             self.r2().to_json()
         )
+    }
+}
+
+impl FromStr for ThreeMat {
+    type Err = ParseFloatError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut r0: ThreeVec = ThreeVec::new(std::f64::NAN,std::f64::NAN,std::f64::NAN);
+        let mut r1: ThreeVec = ThreeVec::new(std::f64::NAN,std::f64::NAN,std::f64::NAN);
+        let mut r2: ThreeVec = ThreeVec::new(std::f64::NAN,std::f64::NAN,std::f64::NAN);
+        for dim in s.replace("}}","|}").replace("},","}|").replace(":{",":!{").trim_matches(|p| p == '{' || p == '}' ).split_terminator('|') {
+            let n_v: Vec<&str> = dim.split(":!").collect();
+            match n_v[0] {
+                "\"r0\"" => r0 = ThreeVec::from_str(n_v[1])?,
+                "\"r1\"" => r1 = ThreeVec::from_str(n_v[1])?,
+                "\"r2\"" => r2 = ThreeVec::from_str(n_v[1])?,
+                x => panic!("Unexpected invalid token {:?}", x),
+            }
+        }
+        Ok(ThreeMat{r0,r1,r2})
     }
 }
 
@@ -522,5 +544,14 @@ mod tests {
                         ThreeVec::new(2.0,2.0,2.0),
                         ThreeVec::new(2.0,2.0,2.0))
         );
+    }
+
+    #[test]
+    fn test_parse() {
+        let xx = ThreeMat::new(ThreeVec::new(1.0,1.0,1.0),
+                                    ThreeVec::new(1.0,1.0,1.0),
+                                    ThreeVec::new(1.0,1.0,1.0));
+        let pp = xx.to_json();
+        assert_eq!(ThreeMat::from_str(&pp).unwrap(),xx);
     }
 }

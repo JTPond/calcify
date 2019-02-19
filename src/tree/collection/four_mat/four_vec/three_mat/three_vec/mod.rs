@@ -8,6 +8,9 @@ use std::ops::SubAssign;
 use std::ops::Mul;
 use std::ops::Neg;
 use std::fmt;
+use std::str::FromStr;
+use std::num::ParseFloatError;
+
 use self::rand::thread_rng;
 use self::rand::distributions::{Distribution, Uniform};
 
@@ -129,6 +132,26 @@ impl fmt::Display for ThreeVec {
 impl Serializable for ThreeVec {
     fn to_json(&self) -> String {
         format!("{{\"x0\":{:.*},\"x1\":{:.*},\"x2\":{:.*}}}", 5, self.x0(), 5, self.x1(), 5, self.x2())
+    }
+}
+
+impl FromStr for ThreeVec {
+    type Err = ParseFloatError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut x0: f64 = std::f64::NAN;
+        let mut x1: f64 = std::f64::NAN;
+        let mut x2: f64 = std::f64::NAN;
+        for dim in s.trim_matches(|p| p == '{' || p == '}' ).split(',') {
+            let n_v: Vec<&str> = dim.split(':').collect();
+            match n_v[0] {
+                "\"x0\"" => x0 = n_v[1].parse::<f64>()?,
+                "\"x1\"" => x1 = n_v[1].parse::<f64>()?,
+                "\"x2\"" => x2 = n_v[1].parse::<f64>()?,
+                x => panic!("Unexpected invalid token {:?}", x),
+            }
+        }
+        Ok(ThreeVec{x0,x1,x2})
     }
 }
 
@@ -365,5 +388,12 @@ mod tests {
             xx+yy,
             ThreeVec::new(2.0,2.0,2.0)
         );
+    }
+
+    #[test]
+    fn test_parse() {
+        let xx = ThreeVec::new(1.0,1.0,1.0);
+        let pp = xx.to_json();
+        assert_eq!(ThreeVec::from_str(&pp).unwrap(),xx);
     }
 }

@@ -6,6 +6,8 @@ use std::ops::SubAssign;
 use std::ops::Mul;
 use std::ops::Neg;
 use std::fmt;
+use std::str::FromStr;
+use std::num::ParseFloatError;
 
 mod three_mat;
 pub use three_mat::ThreeMat;
@@ -238,6 +240,29 @@ impl Serializable for FourVec {
     }
 }
 
+impl FromStr for FourVec {
+    type Err = ParseFloatError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut m0: f64 = std::f64::NAN;
+        let mut m1: f64 = std::f64::NAN;
+        let mut m2: f64 = std::f64::NAN;
+        let mut m3: f64 = std::f64::NAN;
+        for dim in s.trim_matches(|p| p == '{' || p == '}' ).split(',') {
+            let n_v: Vec<&str> = dim.split(':').collect();
+            match n_v[0] {
+                "\"m0\"" => m0 = n_v[1].parse::<f64>()?,
+                "\"m1\"" => m1 = n_v[1].parse::<f64>()?,
+                "\"m2\"" => m2 = n_v[1].parse::<f64>()?,
+                "\"m3\"" => m3 = n_v[1].parse::<f64>()?,
+                x => panic!("Unexpected invalid token {:?}", x),
+            }
+        }
+        Ok(FourVec{m0,m1,m2,m3})
+    }
+}
+
+
 impl Add for FourVec {
     type Output = FourVec;
 
@@ -363,5 +388,12 @@ mod tests {
     fn test_json() {
         let vec4 = FourVec::new(5.0,2.0,2.0,2.0);
         assert_eq!(vec4.to_json(),"{\"m0\":5.00000,\"m1\":2.00000,\"m2\":2.00000,\"m3\":2.00000}");
+    }
+
+    #[test]
+    fn test_parse() {
+        let xx = FourVec::new(5.0,2.0,2.0,2.0);
+        let pp = xx.to_json();
+        assert_eq!(FourVec::from_str(&pp).unwrap(),xx);
     }
 }

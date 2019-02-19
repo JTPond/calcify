@@ -5,6 +5,8 @@ use std::ops::SubAssign;
 use std::ops::Mul;
 use std::ops::Neg;
 use std::fmt;
+use std::str::FromStr;
+use std::num::ParseFloatError;
 
 mod four_vec;
 pub use four_vec::Sinv;
@@ -269,6 +271,29 @@ impl Serializable for FourMat {
     }
 }
 
+impl FromStr for FourMat {
+    type Err = ParseFloatError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut n0: FourVec = FourVec::new(std::f64::NAN,std::f64::NAN,std::f64::NAN,std::f64::NAN);
+        let mut n1: FourVec = FourVec::new(std::f64::NAN,std::f64::NAN,std::f64::NAN,std::f64::NAN);
+        let mut n2: FourVec = FourVec::new(std::f64::NAN,std::f64::NAN,std::f64::NAN,std::f64::NAN);
+        let mut n3: FourVec = FourVec::new(std::f64::NAN,std::f64::NAN,std::f64::NAN,std::f64::NAN);
+        for dim in s.replace("}}","|}").replace("},","}|").replace(":{",":!{").trim_matches(|p| p == '{' || p == '}' ).split_terminator('|') {
+            let n_v: Vec<&str> = dim.split(":!").collect();
+            match n_v[0] {
+                "\"n0\"" => n0 = FourVec::from_str(n_v[1])?,
+                "\"n1\"" => n1 = FourVec::from_str(n_v[1])?,
+                "\"n2\"" => n2 = FourVec::from_str(n_v[1])?,
+                "\"n3\"" => n3 = FourVec::from_str(n_v[1])?,
+                x => panic!("Unexpected invalid token {:?}", x),
+            }
+        }
+        Ok(FourMat{n0,n1,n2,n3})
+    }
+}
+
+
 impl Add for FourMat {
     type Output = FourMat;
 
@@ -456,4 +481,18 @@ pub fn boost(initial: FourVec, v: ThreeVec) -> Result<FourVec,&'static str> {
     }
 
     Ok(ll*initial)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_parse() {
+        let xx = FourMat::new(FourVec::new(1.0,1.0,1.0,1.0),
+                                    FourVec::new(1.0,1.0,1.0,1.0),
+                                    FourVec::new(1.0,1.0,1.0,1.0),
+                                    FourVec::new(1.0,1.0,1.0,1.0));
+        let pp = xx.to_json();
+        assert_eq!(FourMat::from_str(&pp).unwrap(),xx);
+    }
 }

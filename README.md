@@ -12,7 +12,6 @@
 
 ## todo
 
-* from_json
 * to_bytes
 * Four-Momentum
 
