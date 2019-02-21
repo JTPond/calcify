@@ -1,4 +1,7 @@
+use std::ops::AddAssign;
 use std::iter::FromIterator;
+use std::str::FromStr;
+use std::num::ParseFloatError;
 
 mod four_mat;
 
@@ -16,6 +19,76 @@ pub use four_mat::{radians_between, degrees_between};
 pub use four_mat::consts;
 pub use four_mat::Serializable;
 
+/// A histogram is a Collection of Bins
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub struct Bin {
+    pub in_edge: f64,
+    pub ex_edge: f64,
+    pub count: u64,
+}
+
+impl Bin {
+    /// Returns new Bin
+    ///
+    /// # Arguments
+    ///
+    /// * `in_edge` - f64 Inclusive Edge
+    /// * `ex_edge` - f64 Exclusive Edge
+    /// * `count` - u64 Bin value
+    ///
+    pub fn new(in_edge: f64, ex_edge: f64, count: u64) -> Bin {
+        Bin {
+            in_edge,
+            ex_edge,
+            count,
+        }
+    }
+}
+
+impl AddAssign<u64> for Bin {
+    /// Increment Bin count.
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::Bin;
+    /// let mut test_bin = Bin::new(0.0,1.0,10);
+    /// test_bin += 1;
+    ///
+    /// assert_eq!(test_bin.count, 11);
+    /// ```
+    fn add_assign(&mut self, other: u64) {
+        self.count += other;
+    }
+}
+
+impl Serializable for Bin {
+    fn to_json(&self) -> String {
+        format!("{{\"count\":{},\"range\":[{},{}]}}",self.count,self.in_edge,self.ex_edge)
+    }
+}
+
+impl FromStr for Bin {
+    type Err = ParseFloatError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut count: u64 = 0;
+        let mut in_edge: f64 = 0.0;
+        let mut ex_edge: f64 = 0.0;
+        let mut counter = 0;
+        for i in s.replace(":",",").replace("[",",").replace("]",",").trim_matches(|p| p == '{' || p == '}' ).split_terminator(",") {
+            match counter {
+                1 => count = i.parse::<f64>()? as u64,
+                4 => in_edge = i.parse::<f64>()?,
+                5 => ex_edge = i.parse::<f64>()?,
+                _ => (),
+            }
+            counter += 1;
+        }
+
+        Ok(Bin{count,in_edge,ex_edge})
+    }
+}
+
 /// A wrapper around the std::vec::vec
 ///
 /// # Note
@@ -24,7 +97,7 @@ pub use four_mat::Serializable;
 /// So you should use Vec in most cases, and wrap it in a Collection if you need one of those functions.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Collection<T: Serializable> {
-    vec: Vec<T>,
+    pub vec: Vec<T>,
 }
 
 impl<T: Serializable> Collection<T> {
@@ -148,6 +221,47 @@ impl<T: Serializable> FromIterator<T> for Collection<T> {
     }
 }
 
+impl Collection<f64> {
+    /// Return Collection<Bin> histogram
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::Collection;
+    /// use calcify::Bin;
+    /// use calcify::ThreeVec;
+    ///
+    /// let mut col_3v = Collection::empty();
+    ///     for _i in 0..99999 {
+    ///         col_3v.push(ThreeVec::random(10.0));
+    ///     }
+    /// let len_col: Collection<f64> = col_3v.map(ThreeVec::r);
+    /// let histogram: Collection<Bin> = len_col.hist(50);
+    /// ```
+    pub fn hist(&self, num_bins: u64) -> Collection<Bin> {
+        let mut st_vec = self.vec.clone();
+        st_vec.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        if num_bins < 1 {panic!("num_bins must be 0 or greater.");}
+        let width = (st_vec[st_vec.len()-1] - st_vec[0])/(num_bins as f64);
+        let mut out: Collection<Bin> = Collection::empty();
+        for i in 0..(num_bins+1) {
+            let edg0 = st_vec[0] + width * (i as f64);
+            let edg1 = st_vec[0] + width * ((i+1) as f64);
+            out.push(Bin::new(edg0,edg1,0));
+        }
+        let mut c_bin = 0;
+        for x in st_vec.iter() {
+            if x >= &out.at(c_bin).in_edge && x < &out.at(c_bin).ex_edge {
+                *out.at(c_bin) += 1;
+            }
+            else {
+                c_bin += 1;
+                *out.at(c_bin) += 1;
+            }
+        }
+        out
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::prelude::*;
@@ -157,21 +271,33 @@ mod tests {
 
     #[test]
     fn test_map() {
-        let mut col3V = Collection::empty();
-            for _i in 0..9999 {
-                col3V.push(ThreeVec::random(10.0));
+        let mut col_3v = Collection::empty();
+            for _i in 0..99999 {
+                col_3v.push(ThreeVec::random(10.0));
             }
-        let _len_col: Collection<f64> = col3V.map(ThreeVec::r);
+        let _len_col: Collection<f64> = col_3v.map(ThreeVec::r);
+    }
+
+    #[test]
+    fn test_hist() {
+        let f = File::create("test_hist.json").unwrap();
+        let mut wr = BufWriter::new(f);
+        let mut col_3v = Collection::empty();
+            for _i in 0..99999 {
+                col_3v.push(ThreeVec::random(10.0));
+            }
+        let len_col: Collection<f64> = col_3v.map(ThreeVec::r);
+        wr.write(len_col.hist(50).to_json().as_bytes()).unwrap();
     }
 
     #[test]
     fn test_json() {
         let f = File::create("test_out.json").unwrap();
         let mut wr = BufWriter::new(f);
-        let mut col3V = Collection::empty();
+        let mut col_3v = Collection::empty();
         for _i in 0..9999 {
-            col3V.push(ThreeVec::random(10.0));
+            col_3v.push(ThreeVec::random(10.0));
         }
-        wr.write(col3V.map(ThreeVec::r).to_json().as_bytes()).unwrap();
+        wr.write(col_3v.map(ThreeVec::r).to_json().as_bytes()).unwrap();
     }
 }

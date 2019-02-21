@@ -1,10 +1,10 @@
 # Calcify
 
- A crate for 3-D and 4-D vector and matrix algebra, conceived for use in physics simulations. Builds out from a basic ThreeVec struct including most commonly used operations built in.
+A crate for 3-D and 4-D vector and matrix algebra, conceived for use in physics simulations. Builds out from a basic ThreeVec struct including most commonly used operations built in.
+Includes physics constants, 3 and 4-D vectors and matrices and many associated operations, collections, histograms, and output trees, which are serialized in json.
 
 ## Notes
-
-* Don't put anything in a Tree that you want back. Trees are *only* for saving to files. Once a branch is added all of its implementations are lost, except for "Serializable".
+* Branches can now be extracted from Trees, but this is not an ideal process. Trees should still be seen as containers for output only.
 
 * All physics constants are exported in the top in SI units. To retrieve them in Planck or natural units call calcify::Consts::planck() or calcify::Consts::natural().
 

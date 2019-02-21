@@ -5,6 +5,7 @@ use std::num::ParseFloatError;
 mod collection;
 
 pub use collection::Collection;
+pub use collection::Bin;
 
 pub use collection::Sinv;
 pub use collection::beta;
@@ -57,6 +58,10 @@ impl Branch {
         out
     }
 
+    /// Returns a Collection of the specified subtype from the Branch
+    ///
+    /// # Panics
+    /// Branch.subtype does not match the used extract function.
     pub fn extract_f64(&self) -> Result<Collection<f64>, ParseFloatError> {
         if self.subtype != "f64" {panic!("Used incorrect extract function. Check Branch.subtype.")}
         let mut out: Collection<f64> = Collection::empty();
@@ -67,7 +72,11 @@ impl Branch {
         Ok(out)
     }
 
-    pub fn extract_ThreeVec(&self) -> Result<Collection<ThreeVec>, ParseFloatError> {
+    /// Returns a Collection of the specified subtype from the Branch
+    ///
+    /// # Panics
+    /// Branch.subtype does not match the used extract function.
+    pub fn extract_3v(&self) -> Result<Collection<ThreeVec>, ParseFloatError> {
         if self.subtype != "ThreeVec" {panic!("Used incorrect extract function. Check Branch.subtype.")}
         let mut out: Collection<ThreeVec> = Collection::empty();
         for ff in self.branch.to_json().replace("},{","}|{").trim_matches(|p| p == '[' || p == ']' ).split('|'){
@@ -77,7 +86,11 @@ impl Branch {
         Ok(out)
     }
 
-    pub fn extract_ThreeMat(&self) -> Result<Collection<ThreeMat>, ParseFloatError> {
+    /// Returns a Collection of the specified subtype from the Branch
+    ///
+    /// # Panics
+    /// Branch.subtype does not match the used extract function.
+    pub fn extract_3m(&self) -> Result<Collection<ThreeMat>, ParseFloatError> {
         if self.subtype != "ThreeMat" {panic!("Used incorrect extract function. Check Branch.subtype.")}
         let mut out: Collection<ThreeMat> = Collection::empty();
         for ff in self.branch.to_json().replace("},{","}|{").trim_matches(|p| p == '[' || p == ']' ).split('|'){
@@ -87,7 +100,11 @@ impl Branch {
         Ok(out)
     }
 
-    pub fn extract_FourVec(&self) -> Result<Collection<FourVec>, ParseFloatError> {
+    /// Returns a Collection of the specified subtype from the Branch
+    ///
+    /// # Panics
+    /// Branch.subtype does not match the used extract function.
+    pub fn extract_4v(&self) -> Result<Collection<FourVec>, ParseFloatError> {
         if self.subtype != "FourVec" {panic!("Used incorrect extract function. Check Branch.subtype.")}
         let mut out: Collection<FourVec> = Collection::empty();
         for ff in self.branch.to_json().replace("},{","}|{").trim_matches(|p| p == '[' || p == ']' ).split('|'){
@@ -97,11 +114,29 @@ impl Branch {
         Ok(out)
     }
 
-    pub fn extract_FourMat(&self) -> Result<Collection<FourMat>, ParseFloatError> {
+    /// Returns a Collection of the specified subtype from the Branch
+    ///
+    /// # Panics
+    /// Branch.subtype does not match the used extract function.
+    pub fn extract_4m(&self) -> Result<Collection<FourMat>, ParseFloatError> {
         if self.subtype != "FourMat" {panic!("Used incorrect extract function. Check Branch.subtype.")}
         let mut out: Collection<FourMat> = Collection::empty();
         for ff in self.branch.to_json().replace("},{","}|{").trim_matches(|p| p == '[' || p == ']' ).split('|'){
             let f: FourMat = FourMat::from_str(ff)?;
+            out.push(f);
+        }
+        Ok(out)
+    }
+
+    /// Returns a Collection of the specified subtype from the Branch
+    ///
+    /// # Panics
+    /// Branch.subtype does not match the used extract function.
+    pub fn extract_bin(&self) -> Result<Collection<Bin>, ParseFloatError> {
+        if self.subtype != "Bin" {panic!("Used incorrect extract function. Check Branch.subtype.")}
+        let mut out: Collection<Bin> = Collection::empty();
+        for ff in self.branch.to_json().replace("},{","}|{").trim_matches(|p| p == '[' || p == ']' ).split('|'){
+            let f: Bin = Bin::from_str(ff)?;
             out.push(f);
         }
         Ok(out)
@@ -122,15 +157,18 @@ impl Tree {
     /// ```
     /// use calcify::Tree;
     /// use calcify::Collection;
+    /// use calcify::Bin;
     /// use calcify::ThreeVec;
     ///
     /// let f_col: Collection<f64> = Collection::from_vec(vec![0.0,0.0]);
     /// let mut v3_col: Collection<ThreeVec> = Collection::empty();
-    /// for _i in 0..9 {v3_col.push(ThreeVec::random(1.0));}
+    /// for _i in 0..9999 {v3_col.push(ThreeVec::random(1.0));}
+    /// let col_hist: Collection<Bin> = v3_col.map(ThreeVec::r).hist(50);
     /// let mut ttree = Tree::new("Test_Tree");
     /// ttree.add_field("Desc", "This is a Tree for testing.");
-    /// ttree.add_branch("fCol", f_col, "f64");
-    /// ttree.add_branch("v3Col", v3_col, "ThreeVec");
+    /// ttree.add_branch("fcol", f_col, "f64");
+    /// ttree.add_branch("col_3v", v3_col, "ThreeVec");
+    /// ttree.add_branch("hist_3v", col_hist, "Bin");
     /// ```
     pub fn new(name: &'static str) -> Tree {
         let mut md = HashMap::new();
@@ -183,7 +221,11 @@ impl Tree {
                 let br = Branch::new(String::from(t),Box::new(b));
                 self.branches.insert(key,br);
             },
-            x => panic!("Subtype must be one of \"f64\", \"String\", \"ThreeVec\", \"ThreeMat\", \"FourVec\", \"FourMat\", not {}",x),
+            "Bin" => {
+                let br = Branch::new(String::from(t),Box::new(b));
+                self.branches.insert(key,br);
+            },
+            x => panic!("Subtype must be one of \"f64\", \"String\", \"ThreeVec\", \"ThreeMat\", \"FourVec\", \"FourMat\", \"Bin\", not {}",x),
         }
     }
 
@@ -201,18 +243,23 @@ impl Tree {
     /// ```
     /// use calcify::Tree;
     /// use calcify::Collection;
+    /// use calcify::Bin;
     ///
     /// let f_col: Collection<f64> = Collection::from_vec(vec![0.0,0.0]);
     /// let s_col: Collection<String> = Collection::from_vec(vec![String::from("test0"),String::from("test1")]);
+    /// let b_col: Collection<Bin> = Collection::from_vec(vec![Bin::new(0.0,1.0,10),Bin::new(1.0,2.0,10),Bin::new(2.0,3.0,10)]);
     /// let mut ttree = Tree::new("Test_Tree");
-    /// ttree.add_branch("fCol", f_col, "f64");
+    /// ttree.add_branch("fcol", f_col, "f64");
     /// ttree.add_branch("sCol", s_col, "String");
+    /// ttree.add_branch("bCol", b_col, "Bin");
     ///
-    /// let ex_f_col: Collection<f64> = ttree.get_branch("fCol").unwrap().extract_f64().unwrap();
+    /// let ex_f_col: Collection<f64> = ttree.get_branch("fcol").unwrap().extract_f64().unwrap();
     /// let ex_s_col: Collection<String> = ttree.get_branch("sCol").unwrap().extract_str();
+    /// let ex_b_col: Collection<Bin> = ttree.get_branch("bCol").unwrap().extract_bin().unwrap();
     ///
     /// assert_eq!(Collection::from_vec(vec![0.0,0.0]),ex_f_col);
     /// assert_eq!(Collection::from_vec(vec![String::from("test0"),String::from("test1")]),ex_s_col);
+    /// assert_eq!(Collection::from_vec(vec![Bin::new(0.0,1.0,10),Bin::new(1.0,2.0,10),Bin::new(2.0,3.0,10)]),ex_b_col);
     /// ```
     pub fn get_branch(&mut self, key: &'static str) -> Option<&Branch> {
         self.branches.get(key)
@@ -252,13 +299,13 @@ mod tests {
     fn test_tree_json() {
         let f = File::create("test_tree.json").unwrap();
         let mut wr = BufWriter::new(f);
-        let fCol: Collection<f64> = Collection::from_vec(vec![0.0,0.0]);
-        let mut v3Col: Collection<ThreeVec> = Collection::empty();
-        for _i in 0..9 {v3Col.push(ThreeVec::random(1.0));}
+        let fcol: Collection<f64> = Collection::from_vec(vec![0.0,0.0]);
+        let mut col_3v: Collection<ThreeVec> = Collection::empty();
+        for _i in 0..9 {col_3v.push(ThreeVec::random(1.0));}
         let mut ttree = Tree::new("Test_Tree");
         ttree.add_field("Desc", "This is a Tree for testing.");
-        ttree.add_branch("fCol", fCol, "f64");
-        ttree.add_branch("v3Col", v3Col, "ThreeVec");
+        ttree.add_branch("fcol", fcol, "f64");
+        ttree.add_branch("col_3v", col_3v, "ThreeVec");
         wr.write(ttree.to_json().as_bytes()).unwrap();
     }
 }
