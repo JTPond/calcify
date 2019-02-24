@@ -1,3 +1,4 @@
+use std::f64::MIN_POSITIVE;
 use std::ops::AddAssign;
 use std::iter::FromIterator;
 use std::str::FromStr;
@@ -18,6 +19,54 @@ pub use four_mat::{radians_between, degrees_between};
 
 pub use four_mat::consts;
 pub use four_mat::Serializable;
+
+/// A plot is a Collection of Points
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub struct Point {
+    pub x: f64,
+    pub y: f64,
+}
+
+impl Point {
+    /// Returns new Point
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - f64 Independent Variable
+    /// * `y` - f64 Dependent Variable
+    ///
+    pub fn new(x: f64, y: f64) -> Point {
+        Point {
+            x,
+            y,
+        }
+    }
+}
+
+impl Serializable for Point {
+    fn to_json(&self) -> String {
+        format!("{{\"x\":{},\"y\":{}}}", self.x, self.y)
+    }
+}
+
+impl FromStr for Point {
+    type Err = ParseFloatError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut x: f64 = std::f64::NAN;
+        let mut y: f64 = std::f64::NAN;
+        for dim in s.trim_matches(|p| p == '{' || p == '}' ).split(',') {
+            let n_v: Vec<&str> = dim.split(':').collect();
+            match n_v[0] {
+                "\"x\"" => x = n_v[1].parse::<f64>()?,
+                "\"y\"" => y = n_v[1].parse::<f64>()?,
+                x => panic!("Unexpected invalid token {:?}", x),
+            }
+        }
+        Ok(Point{x,y})
+    }
+}
+
 
 /// A histogram is a Collection of Bins
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -221,6 +270,30 @@ impl<T: Serializable> FromIterator<T> for Collection<T> {
     }
 }
 
+impl Collection<Point> {
+    /// Return Collection<Point> plot
+    ///
+    /// # Arguments
+    ///
+    /// * `ind` - Independent variable Vec<64>
+    /// * `dep` - Dependent variable Vec<64>
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::Collection;
+    /// use calcify::Point;
+    ///
+    /// let test_plot: Collection<Point> = Collection::plot(vec![0.0,1.0,2.0],vec![3.0,4.0,5.0]);
+    /// ```
+    pub fn plot(ind: Vec<f64>, dep: Vec<f64>) -> Collection<Point> {
+        let mut out: Collection<Point> = Collection::empty();
+        for (x , y) in ind.iter().zip(dep.iter()) {
+            out.push(Point::new(*x,*y));
+        }
+        out
+    }
+}
+
 impl Collection<f64> {
     /// Return Collection<Bin> histogram
     ///
@@ -241,9 +314,9 @@ impl Collection<f64> {
         let mut st_vec = self.vec.clone();
         st_vec.sort_by(|a, b| a.partial_cmp(b).unwrap());
         if num_bins < 1 {panic!("num_bins must be 0 or greater.");}
-        let width = (st_vec[st_vec.len()-1] - st_vec[0])/(num_bins as f64);
+        let width = (st_vec[st_vec.len()-1] + 0.01 - st_vec[0])/(num_bins as f64);
         let mut out: Collection<Bin> = Collection::empty();
-        for i in 0..(num_bins+1) {
+        for i in 0..(num_bins) {
             let edg0 = st_vec[0] + width * (i as f64);
             let edg1 = st_vec[0] + width * ((i+1) as f64);
             out.push(Bin::new(edg0,edg1,0));
@@ -284,10 +357,18 @@ mod tests {
         let mut wr = BufWriter::new(f);
         let mut col_3v = Collection::empty();
             for _i in 0..99999 {
-                col_3v.push(ThreeVec::random(10.0));
+                col_3v.push(ThreeVec::random(10000.0));
             }
-        let len_col: Collection<f64> = col_3v.map(ThreeVec::r);
+        let len_col: Collection<f64> = col_3v.map(|tv| { *tv.x0()});
         wr.write(len_col.hist(50).to_json().as_bytes()).unwrap();
+    }
+
+    #[test]
+    fn test_plot() {
+        let f = File::create("test_plot.json").unwrap();
+        let mut wr = BufWriter::new(f);
+        let test_plot: Collection<Point> = Collection::plot(vec![0.0,1.0,2.0],vec![3.0,4.0,5.0]);
+        wr.write(test_plot.to_json().as_bytes()).unwrap();
     }
 
     #[test]

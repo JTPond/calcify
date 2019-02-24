@@ -6,6 +6,7 @@ mod collection;
 
 pub use collection::Collection;
 pub use collection::Bin;
+pub use collection::Point;
 
 pub use collection::Sinv;
 pub use collection::beta;
@@ -141,6 +142,20 @@ impl Branch {
         }
         Ok(out)
     }
+
+    /// Returns a Collection of the specified subtype from the Branch
+    ///
+    /// # Panics
+    /// Branch.subtype does not match the used extract function.
+    pub fn extract_point(&self) -> Result<Collection<Point>, ParseFloatError> {
+        if self.subtype != "Point" {panic!("Used incorrect extract function. Check Branch.subtype.")}
+        let mut out: Collection<Point> = Collection::empty();
+        for ff in self.branch.to_json().replace("},{","}|{").trim_matches(|p| p == '[' || p == ']' ).split('|'){
+            let f: Point = Point::from_str(ff)?;
+            out.push(f);
+        }
+        Ok(out)
+    }
 }
 
 
@@ -190,7 +205,7 @@ impl Tree {
     ///
     /// * `key` - Hash key, &'static str
     /// * `b` - Branch,  Collection<T: Serializable>
-    /// * `t` - Collection subtype,  &'static str, one of "f64", "String", "ThreeVec", "ThreeMat", "FourVec", "FourMat"
+    /// * `t` - Collection subtype,  &'static str, one of "f64", "String", "ThreeVec", "ThreeMat", "FourVec", "FourMat", "Bin", "Point"
     ///
     /// # Panics
     ///
@@ -225,7 +240,11 @@ impl Tree {
                 let br = Branch::new(String::from(t),Box::new(b));
                 self.branches.insert(key,br);
             },
-            x => panic!("Subtype must be one of \"f64\", \"String\", \"ThreeVec\", \"ThreeMat\", \"FourVec\", \"FourMat\", \"Bin\", not {}",x),
+            "Point" => {
+                let br = Branch::new(String::from(t),Box::new(b));
+                self.branches.insert(key,br);
+            },
+            x => panic!("Subtype must be one of \"f64\", \"String\", \"ThreeVec\", \"ThreeMat\", \"FourVec\", \"FourMat\", \"Bin\", \"Point\", not {}",x),
         }
     }
 

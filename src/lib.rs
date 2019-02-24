@@ -22,6 +22,7 @@ pub use tree::Branch;
 pub use tree::Tree;
 pub use tree::Collection;
 pub use tree::Bin;
+pub use tree::Point;
 
 pub use tree::Sinv;
 pub use tree::beta;
