@@ -1,4 +1,3 @@
-use std::f64::MIN_POSITIVE;
 use std::ops::AddAssign;
 use std::iter::FromIterator;
 use std::str::FromStr;
