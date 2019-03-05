@@ -3,6 +3,11 @@ use std::iter::FromIterator;
 use std::str::FromStr;
 use std::num::ParseFloatError;
 
+mod fitting;
+
+pub use fitting::gaussian;
+pub use fitting::Fit;
+
 mod four_mat;
 
 pub use four_mat::Sinv;
@@ -163,6 +168,7 @@ impl<T: Serializable> Collection<T> {
     /// let col4V = Collection::from_vec(
     ///     vec![FourVec::new(10.0,1.0,1.0,1.0)]
     /// );
+    /// ```
     pub fn from_vec(vec: Vec<T>) -> Collection<T> {
         Collection {
             vec,
@@ -177,6 +183,7 @@ impl<T: Serializable> Collection<T> {
     /// use calcify::Collection;
     ///
     /// let col4V: Collection<FourVec> = Collection::empty();
+    /// ```
     pub fn empty() -> Collection<T> {
         Collection {
             vec: Vec::<T>::new(),
@@ -200,6 +207,7 @@ impl<T: Serializable> Collection<T> {
     /// assert_eq!(*col4V.at(0),FourVec::new(10.0,1.0,1.0,1.0));
     /// *col4V.at(0) += FourVec::new(10.0,1.0,1.0,1.0);
     /// assert_eq!(*col4V.at(0),FourVec::new(20.0,2.0,2.0,2.0));
+    /// ```
     pub fn at(&mut self, i: usize) -> &mut T {
         &mut self.vec[i]
     }
@@ -218,6 +226,7 @@ impl<T: Serializable> Collection<T> {
     /// let mut col4V = Collection::empty();
     /// col4V.push(FourVec::new(10.0,1.0,1.0,1.0));
     /// assert_eq!(*col4V.at(0),FourVec::new(10.0,1.0,1.0,1.0));
+    /// ```
     pub fn push(&mut self, nn: T) {
         self.vec.push(nn);
     }
@@ -244,11 +253,39 @@ impl<T: Serializable> Collection<T> {
     ///     mass_col4V.push(1.0);
     /// }
     /// assert_eq!(col4V.map(FourVec::s), mass_col4V);
+    /// ```
     pub fn map<F,Z: Serializable>(&self, close: F) -> Collection<Z> where
         F: FnMut(&T) -> Z{
-        Collection {
-            vec: self.vec.iter().map(close).collect(),
-        }
+            Collection::from_vec(self.vec.iter().map(close).collect())
+    }
+
+    /// Cuts/Filters a function and returns a new Collection<T>
+    ///
+    /// Implements Vec::iter::filter and Vec::iter::collect.
+    ///
+    /// # Note
+    ///
+    /// * This may behave differently than expected. Cut keeps the elements that *pass* the test, not fail it. 
+    ///
+    /// # Arguments
+    ///
+    /// * `close` - F: FnMut(&&T: Serializable) -> bool
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::FourVec;
+    /// use calcify::Collection;
+    ///
+    /// let mut col4V: Collection<FourVec> = Collection::empty();
+    /// for _i in 0..9999 {
+    ///     col4V.push(FourVec::new(1.0,0.0,0.0,0.0));
+    /// }
+    /// col4V.cut(|&&x| x.s() < 10.0);
+    /// ```
+    pub fn cut<F>(&self, close: F) -> Collection<T> where
+	F: FnMut(&&T) -> bool, T: Clone {
+             let new_vec: Vec<T> = self.vec.iter().filter(close).cloned().collect();
+             Collection::from_vec(new_vec)
     }
 }
 
@@ -291,7 +328,33 @@ impl Collection<Point> {
         }
         out
     }
+
+    /// Return Fit of the Collection
+    ///
+    /// # Arguments
+    ///
+    /// * `func` - &'static Fn(f64, Vec<f64>) -> f64
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::Collection;
+    /// use calcify::Point;
+    /// use calcify::gaussian;
+    ///
+    /// let test_plot: Collection<Point> = Collection::plot(vec![0.0,1.0,2.0],vec![3.0,4.0,5.0]);
+    /// let test_fit = test_plot.fit(&gaussian);
+    /// ```
+    pub fn fit(&self, func: &'static Fn(f64, Vec<f64>) -> f64) -> Fit {
+        let mut ind: Vec<f64> = vec![];
+        let mut dep: Vec<f64> = vec![];
+        for pp in self.vec.iter() {
+            ind.push(pp.x);
+            dep.push(pp.y);
+        }
+        Fit::new(ind,dep,func)
+    }
 }
+
 
 impl Collection<f64> {
     /// Return Collection<Bin> histogram

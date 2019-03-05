@@ -15,8 +15,10 @@
 //! * Plotting tool
 //! * to_bytes
 //! * Four-Momentum
-
 mod tree;
+
+pub use tree::gaussian;
+pub use tree::Fit;
 
 pub use tree::Branch;
 pub use tree::Tree;
