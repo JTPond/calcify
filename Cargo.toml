@@ -1,7 +1,7 @@
 [package]
 name = "calcify"
 description = "Physics vector library"
-version = "0.5.3"
+version = "0.5.4"
 authors = ["JTPond <jtpond42@gmail.com>"]
 edition = "2018"
 readme = "README.md"

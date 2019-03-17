@@ -16,7 +16,7 @@ use calcify::Serializable;
 fn main() {
     let mut ttree = Tree::new("universe_in_a_box");
 
-    let mut universe = Universe::cloud(1.0,400,0.001);
+    let mut universe = Universe::cloud(1.0,40,0.01);
     let init_state: Collection<Particle> = Collection::from_vec(universe.state.clone());
     let init_hist: Collection<Bin> = init_state.map(|x| {x.r().r()}).hist(50);
 

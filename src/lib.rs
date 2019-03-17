@@ -5,6 +5,8 @@
 //!  Includes physics constants, 3 and 4-D vectors and matrices and many associated operations, collections, histograms, and output trees, which are serialized in json.
 //!
 //! ## Notes
+//! * Now includes example of a many body simulation "universe_in_a_box" use `cargo run --example universe_in_a_box` This could take several seconds.
+//!
 //! * Branches can now be extracted from Trees, but this is not an ideal process. Trees should still be seen as containers for output only.
 //!
 //! * All physics constants are exported in the top in SI units. To retrieve them in Planck or natural units call calcify::Consts::planck() or calcify::Consts::natural().
@@ -12,7 +14,7 @@
 //! * FourMat::lambda() has been replaced by fn boost(initial: FourVec, v: ThreeVec). The math has been changed.
 //!
 //! ## todo
-//! * Plotting tool
+//! * The goal going forward is to build a fairly robust data processing tool in Python. Keep an eye out for that. 
 //! * to_bytes
 //! * Four-Momentum
 mod tree;
