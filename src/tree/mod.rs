@@ -4,8 +4,6 @@ use std::num::ParseFloatError;
 
 mod collection;
 
-pub use collection::gaussian;
-pub use collection::Fit;
 pub use collection::Collection;
 pub use collection::Bin;
 pub use collection::Point;

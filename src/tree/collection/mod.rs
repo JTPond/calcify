@@ -3,11 +3,6 @@ use std::iter::FromIterator;
 use std::str::FromStr;
 use std::num::ParseFloatError;
 
-mod fitting;
-
-pub use fitting::gaussian;
-pub use fitting::Fit;
-
 mod four_mat;
 
 pub use four_mat::Sinv;
@@ -328,33 +323,7 @@ impl Collection<Point> {
         }
         out
     }
-
-    /// Return Fit of the Collection
-    ///
-    /// # Arguments
-    ///
-    /// * `func` - &'static Fn(f64, Vec<f64>) -> f64
-    ///
-    /// # Example
-    /// ```
-    /// use calcify::Collection;
-    /// use calcify::Point;
-    /// use calcify::gaussian;
-    ///
-    /// let test_plot: Collection<Point> = Collection::plot(vec![0.0,1.0,2.0],vec![3.0,4.0,5.0]);
-    /// let test_fit = test_plot.fit(&gaussian);
-    /// ```
-    pub fn fit(&self, func: &'static Fn(f64, Vec<f64>) -> f64) -> Fit {
-        let mut ind: Vec<f64> = vec![];
-        let mut dep: Vec<f64> = vec![];
-        for pp in self.vec.iter() {
-            ind.push(pp.x);
-            dep.push(pp.y);
-        }
-        Fit::new(ind,dep,func)
-    }
 }
-
 
 impl Collection<f64> {
     /// Return Collection<Bin> histogram
