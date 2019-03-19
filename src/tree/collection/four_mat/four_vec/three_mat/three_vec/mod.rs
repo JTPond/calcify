@@ -20,6 +20,9 @@ pub mod consts;
 pub mod serializable;
 pub use serializable::Serializable;
 
+extern crate rmp;
+use rmp::encode::*;
+
 /// Three Vector
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct ThreeVec {
@@ -131,7 +134,18 @@ impl fmt::Display for ThreeVec {
 
 impl Serializable for ThreeVec {
     fn to_json(&self) -> String {
-        format!("{{\"x0\":{:.*},\"x1\":{:.*},\"x2\":{:.*}}}", 5, self.x0(), 5, self.x1(), 5, self.x2())
+        format!("{{\"x0\":{},\"x1\":{},\"x2\":{}}}", self.x0(), self.x1(), self.x2())
+    }
+    fn to_jsonc(&self) -> String {
+        format!("[{},{},{}]", self.x0(), self.x1(), self.x2()) 
+    }
+    fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
+        let mut buf = Vec::with_capacity(4);
+        write_array_len(&mut buf, 3)?;
+        write_f64(&mut buf, *self.x0())?;
+        write_f64(&mut buf, *self.x1())?;
+        write_f64(&mut buf, *self.x2())?;
+        Ok(buf)
     }
 }
 

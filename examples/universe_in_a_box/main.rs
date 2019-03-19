@@ -16,41 +16,42 @@ use calcify::Serializable;
 fn main() {
     let mut ttree = Tree::new("universe_in_a_box");
 
-    let mut universe = Universe::cloud(1.0,40,0.01);
+    let mut universe = Universe::cloud(1.0,400,0.01);
     let init_state: Collection<Particle> = Collection::from_vec(universe.state.clone());
     let init_hist: Collection<Bin> = init_state.map(|x| {x.r().r()}).hist(50);
 
     ttree.add_field("Desc","A Tree including branches for the universe in a box.");
     ttree.add_branch("init_state", init_state, "ThreeVec");
-    ttree.add_branch("init_hist", init_hist, "f64");
+    ttree.add_branch("init_hist", init_hist, "Bin");
 
 
-    universe.run(6500,1);
+    universe.run(650,1);
 
     let mid1_state: Collection<Particle> = Collection::from_vec(universe.state.clone());
     let mid1_hist: Collection<Bin> = mid1_state.map(|x| {x.r().r()}).hist(50);
 
     ttree.add_branch("mid1_state", mid1_state, "ThreeVec");
-    ttree.add_branch("mid1_hist", mid1_hist, "f64");
+    ttree.add_branch("mid1_hist", mid1_hist, "Bin");
 
-    universe.run(6500,1);
+    universe.run(650,1);
 
     let mid2_state: Collection<Particle> = Collection::from_vec(universe.state.clone());
     let mid2_hist: Collection<Bin> = mid2_state.map(|x| {x.r().r()}).hist(50);
 
     ttree.add_branch("mid2_state", mid2_state, "ThreeVec");
-    ttree.add_branch("mid2_hist", mid2_hist, "f64");
+    ttree.add_branch("mid2_hist", mid2_hist, "Bin");
 
-    universe.run(6500,1);
+    universe.run(650,1);
 
     let fin_state: Collection<Particle> = Collection::from_vec(universe.state.clone());
     let fin_hist: Collection<Bin> = fin_state.map(|x| {x.r().r()}).hist(50);
 
     ttree.add_branch("fin_state", fin_state, "ThreeVec");
-    ttree.add_branch("fin_hist", fin_hist, "f64");
+    ttree.add_branch("fin_hist", fin_hist, "Bin");
 
-    let f = File::create("universe.txt").unwrap();
+    let f = File::create("universe.msg").unwrap();
     let mut wr = BufWriter::new(f);
-    wr.write(ttree.to_json().as_bytes()).unwrap();
+    let gg = ttree.to_msg().unwrap();
+    wr.write(gg.as_slice()).unwrap();
 
 }

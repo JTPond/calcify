@@ -19,6 +19,9 @@ pub use four_mat::{radians_between, degrees_between};
 pub use four_mat::consts;
 pub use four_mat::Serializable;
 
+extern crate rmp;
+use rmp::encode::*;
+
 /// A plot is a Collection of Points
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Point {
@@ -45,6 +48,16 @@ impl Point {
 impl Serializable for Point {
     fn to_json(&self) -> String {
         format!("{{\"x\":{},\"y\":{}}}", self.x, self.y)
+    }
+    fn to_jsonc(&self) -> String {
+        format!("[{},{}]", self.x, self.y)
+    }
+    fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
+        let mut buf = Vec::with_capacity(3);
+        write_array_len(&mut buf, 2)?;
+        write_f64(&mut buf, self.x)?;
+        write_f64(&mut buf, self.y)?;
+        Ok(buf)
     }
 }
 
@@ -112,6 +125,18 @@ impl AddAssign<u64> for Bin {
 impl Serializable for Bin {
     fn to_json(&self) -> String {
         format!("{{\"count\":{},\"range\":[{},{}]}}",self.count,self.in_edge,self.ex_edge)
+    }
+    fn to_jsonc(&self) -> String {
+        format!("[{},[{},{}]]", self.count, self.in_edge, self.ex_edge)
+    }
+    fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
+        let mut buf = Vec::with_capacity(5);
+        write_array_len(&mut buf, 2)?;
+        write_uint(&mut buf, self.count)?;
+        write_array_len(&mut buf, 2)?;
+        write_f64(&mut buf, self.in_edge)?;
+        write_f64(&mut buf, self.ex_edge)?;
+        Ok(buf)
     }
 }
 
@@ -260,7 +285,7 @@ impl<T: Serializable> Collection<T> {
     ///
     /// # Note
     ///
-    /// * This may behave differently than expected. Cut keeps the elements that *pass* the test, not fail it. 
+    /// * This may behave differently than expected. Cut keeps the elements that *pass* the test, not fail it.
     ///
     /// # Arguments
     ///
@@ -288,6 +313,18 @@ impl<T: Serializable> Serializable for Collection<T> {
     fn to_json(&self) -> String {
         let str_vec: Vec<String> = self.vec.iter().map(|x| x.to_json()).collect();
         format!("[{}]",str_vec.join(","))
+    }
+    fn to_jsonc(&self) -> String {
+        let str_vec: Vec<String> = self.vec.iter().map(|x| x.to_jsonc()).collect();
+        format!("[{}]",str_vec.join(","))
+    }
+    fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
+        let mut buf = Vec::new();
+        write_array_len(&mut buf, (self.vec.len()) as u32)?;
+        for x in self.vec.iter() {
+            buf.append(&mut x.to_msg()?);
+        }
+        Ok(buf)
     }
 }
 

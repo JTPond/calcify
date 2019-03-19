@@ -21,6 +21,9 @@ pub use four_vec::{radians_between, degrees_between};
 pub use four_vec::consts;
 pub use four_vec::Serializable;
 
+extern crate rmp;
+use rmp::encode::*;
+
 /// Four Matrix
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct FourMat {
@@ -269,6 +272,24 @@ impl Serializable for FourMat {
             self.n3().to_json()
         )
     }
+    fn to_jsonc(&self) -> String {
+        format!("[{},{},{},{}]",
+            self.n0().to_jsonc(),
+            self.n1().to_jsonc(),
+            self.n2().to_jsonc(),
+            self.n3().to_jsonc()
+        )
+    }
+    fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
+        let mut buf = Vec::new();
+        write_array_len(&mut buf, 4)?;
+        buf.append(&mut self.n0().to_msg()?);
+        buf.append(&mut self.n1().to_msg()?);
+        buf.append(&mut self.n2().to_msg()?);
+        buf.append(&mut self.n3().to_msg()?);
+        Ok(buf)
+    }
+
 }
 
 impl FromStr for FourMat {

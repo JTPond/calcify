@@ -4,6 +4,9 @@ use std::fmt;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::channel;
 
+extern crate rmp;
+use rmp::encode::*;
+
 extern crate calcify;
 pub use calcify::ThreeVec;
 pub use calcify::Serializable;
@@ -115,6 +118,13 @@ impl Serializable for Particle {
     fn to_json(&self) -> String {
         self.r().to_json()
     }
+    fn to_jsonc(&self) -> String {
+        self.r().to_jsonc()
+    }
+    fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
+        self.r().to_msg()
+    }
+
 }
 
 impl Universe {

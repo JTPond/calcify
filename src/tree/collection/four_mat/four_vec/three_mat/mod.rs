@@ -15,6 +15,9 @@ pub use three_vec::{radians_between, degrees_between};
 pub use three_vec::consts;
 pub use three_vec::Serializable;
 
+extern crate rmp;
+use rmp::encode::*;
+
 /// Three Matrix
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct ThreeMat {
@@ -224,6 +227,21 @@ impl Serializable for ThreeMat {
             self.r1().to_json(),
             self.r2().to_json()
         )
+    }
+    fn to_jsonc(&self) -> String {
+        format!("[{},{},{}]",
+            self.r0().to_jsonc(),
+            self.r1().to_jsonc(),
+            self.r2().to_jsonc()
+        )
+    }
+    fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
+        let mut buf = Vec::new();
+        write_array_len(&mut buf, 3)?;
+        buf.append(&mut self.r0().to_msg()?);
+        buf.append(&mut self.r1().to_msg()?);
+        buf.append(&mut self.r2().to_msg()?);
+        Ok(buf)
     }
 }
 

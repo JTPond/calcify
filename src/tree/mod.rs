@@ -22,6 +22,9 @@ pub use collection::{radians_between, degrees_between};
 pub use collection::consts;
 pub use collection::Serializable;
 
+extern crate rmp;
+use rmp::encode::*;
+
 /// Branch
 ///
 /// # Note
@@ -289,6 +292,18 @@ impl Serializable for Branch {
     fn to_json(&self) -> String {
         format!("{{\"branch\":{},\"subtype\":{}}}",self.branch.to_json(),self.subtype.to_json())
     }
+    fn to_jsonc(&self) -> String {
+        format!("{{\"branch\":{},\"subtype\":{}}}",self.branch.to_jsonc(),self.subtype.to_jsonc())
+    }
+    fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
+        let mut buf = Vec::new();
+        write_map_len(&mut buf, 2)?;
+        write_str(&mut buf, "branch")?;
+        buf.append(&mut self.branch.to_msg()?);
+        write_str(&mut buf, "subtype")?;
+        buf.append(&mut self.subtype.to_msg()?);
+        Ok(buf)
+    }
 }
 
 impl Serializable for Tree {
@@ -304,6 +319,34 @@ impl Serializable for Tree {
         out.pop();
         out.push_str("}}");
         out
+    }
+    fn to_jsonc(&self) -> String {
+        let mut out = String::from("{");
+        for (key, val) in &self.metadata {
+            out.push_str(format!("\"{}\":\"{}\",",key,val).as_str());
+        }
+        out.push_str("\"branches\":{");
+        for (key, val) in &self.branches {
+            out.push_str(format!("\"{}\":{},",key,val.to_jsonc()).as_str());
+        }
+        out.pop();
+        out.push_str("}}");
+        out
+    }
+    fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
+        let mut buf = Vec::new();
+        write_map_len(&mut buf, (self.metadata.len()+1) as u32)?;
+        for (key, val) in &self.metadata {
+            write_str(&mut buf, key)?;
+            write_str(&mut buf, val)?;
+        }
+        write_str(&mut buf, "branches")?;
+        write_map_len(&mut buf, (self.branches.len()) as u32)?;
+        for (key, val) in &self.branches {
+            write_str(&mut buf, key)?;
+            buf.append(&mut val.to_msg()?);
+        }
+        Ok(buf)
     }
 }
 

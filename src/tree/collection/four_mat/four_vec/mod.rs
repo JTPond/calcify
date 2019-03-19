@@ -16,6 +16,9 @@ pub use three_mat::{radians_between, degrees_between};
 pub use three_mat::consts;
 pub use three_mat::Serializable;
 
+extern crate rmp;
+use rmp::encode::*;
+
 /// Variants of S space-time invariant
 #[derive(Debug, PartialEq)]
 pub enum Sinv {
@@ -235,8 +238,20 @@ impl fmt::Display for FourVec {
 
 impl Serializable for FourVec {
     fn to_json(&self) -> String {
-        format!("{{\"m0\":{:.*},\"m1\":{:.*},\"m2\":{:.*},\"m3\":{:.*}}}",
-            5, self.m0(), 5, self.m1(), 5, self.m2(), 5, self.m3())
+        format!("{{\"m0\":{},\"m1\":{},\"m2\":{},\"m3\":{}}}",
+            self.m0(), self.m1(), self.m2(), self.m3())
+    }
+    fn to_jsonc(&self) -> String {
+        format!("[{},{},{},{}]", self.m0(), self.m1(), self.m2(), self.m3()) 
+    }
+    fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
+        let mut buf = Vec::with_capacity(5);
+        write_array_len(&mut buf, 4)?;
+        write_f64(&mut buf, *self.m0())?;
+        write_f64(&mut buf, *self.m1())?;
+        write_f64(&mut buf, *self.m2())?;
+        write_f64(&mut buf, *self.m3())?;
+        Ok(buf)
     }
 }
 
