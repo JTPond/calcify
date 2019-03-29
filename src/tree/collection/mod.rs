@@ -343,8 +343,8 @@ impl Collection<Point> {
     ///
     /// # Arguments
     ///
-    /// * `ind` - Independent variable Vec<64>
-    /// * `dep` - Dependent variable Vec<64>
+    /// * `ind` - Independent variable: Vec<64>
+    /// * `dep` - Dependent variable: Vec<64>
     ///
     /// # Example
     /// ```
@@ -365,6 +365,14 @@ impl Collection<Point> {
 impl Collection<f64> {
     /// Return Collection<Bin> histogram
     ///
+    /// # Arguments
+    ///
+    /// * `num_bins` - Number of bins: u64 (>= 2)
+    ///
+    /// # Panics
+    ///
+    /// * If num_bins is less than 2 
+    ///
     /// # Example
     /// ```
     /// use calcify::Collection;
@@ -381,7 +389,7 @@ impl Collection<f64> {
     pub fn hist(&self, num_bins: u64) -> Collection<Bin> {
         let mut st_vec = self.vec.clone();
         st_vec.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        if num_bins < 1 {panic!("num_bins must be 0 or greater.");}
+        if num_bins < 2 {panic!("num_bins must be 2 or greater.");}
         let width = (st_vec[st_vec.len()-1] + 0.01 - st_vec[0])/(num_bins as f64);
         let mut out: Collection<Bin> = Collection::empty();
         for i in 0..(num_bins) {
