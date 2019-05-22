@@ -11,6 +11,7 @@ pub use four_mat::gamma;
 pub use four_mat::boost;
 pub use four_mat::FourVec;
 pub use four_mat::FourMat;
+pub use four_mat::LightSpeedError;
 
 pub use four_mat::ThreeMat;
 pub use four_mat::ThreeVec;

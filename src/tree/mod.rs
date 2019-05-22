@@ -14,6 +14,7 @@ pub use collection::gamma;
 pub use collection::boost;
 pub use collection::FourVec;
 pub use collection::FourMat;
+pub use collection::LightSpeedError;
 
 pub use collection::ThreeMat;
 pub use collection::ThreeVec;

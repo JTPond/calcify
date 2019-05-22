@@ -5,6 +5,7 @@ use std::ops::Sub;
 use std::ops::SubAssign;
 use std::ops::Mul;
 use std::ops::Neg;
+use std::error;
 use std::fmt;
 use std::str::FromStr;
 use std::num::ParseFloatError;
@@ -18,6 +19,28 @@ pub use three_mat::Serializable;
 
 extern crate rmp;
 use rmp::encode::*;
+
+/// Cannot have a velocity greater than C_LIGHT 
+#[derive(Debug,Clone)]
+pub struct LightSpeedError;
+
+impl fmt::Display for LightSpeedError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f,"Cannot have a velocity greater than calcify::C_LIGHT.")
+    }
+}
+
+impl error::Error for LightSpeedError {
+    fn description(&self) -> &str {
+         "Cannot have a velocity greater than calcify::C_LIGHT"
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        // Generic error, underlying cause isn't tracked.
+        None
+    }
+}
+
 
 /// Variants of S space-time invariant
 #[derive(Debug, PartialEq)]
@@ -39,15 +62,16 @@ pub enum Sinv {
 ///
 /// ```
 /// use calcify::beta;
+/// use calcify::LightSpeedError;
 /// let v = 149_896_229.0;
 /// assert_eq!(beta(v).unwrap(),0.5);
-/// assert!(beta(10e10).is_err(),"Beta must be ltet 1.0");
+/// assert!(beta(10e10).is_err(),LightSpeedError);
 /// ```
-pub fn beta(v: f64) -> Result<f64,&'static str> {
+pub fn beta(v: f64) -> Result<f64,LightSpeedError> {
     let b1 = v/consts::C_LIGHT;
     match b1 <= 1.0 {
         true => Ok(b1),
-        false => Err("Beta must be ltet 1.0"),
+        false => Err(LightSpeedError),
     }
 
 }
@@ -402,7 +426,7 @@ mod tests {
     #[test]
     fn test_json() {
         let vec4 = FourVec::new(5.0,2.0,2.0,2.0);
-        assert_eq!(vec4.to_json(),"{\"m0\":5.00000,\"m1\":2.00000,\"m2\":2.00000,\"m3\":2.00000}");
+        assert_eq!(vec4.to_json(),"{\"m0\":5,\"m1\":2,\"m2\":2,\"m3\":2}");
     }
 
     #[test]

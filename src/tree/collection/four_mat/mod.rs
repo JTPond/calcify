@@ -13,6 +13,7 @@ pub use four_vec::Sinv;
 pub use four_vec::beta;
 pub use four_vec::gamma;
 pub use four_vec::FourVec;
+pub use four_vec::LightSpeedError;
 
 pub use four_vec::ThreeMat;
 pub use four_vec::ThreeVec;
@@ -487,12 +488,12 @@ impl Neg for FourMat {
 /// assert_eq!(boost(vec4,ThreeVec::new(0.0,0.0,0.0)).unwrap(),vec4);
 ///
 /// ```
-pub fn boost(initial: FourVec, v: ThreeVec) -> Result<FourVec,&'static str> {
+pub fn boost(initial: FourVec, v: ThreeVec) -> Result<FourVec,LightSpeedError> {
     let bx = beta(*v.x0())?;
     let by = beta(*v.x1())?;
     let bz = beta(*v.x2())?;
     let bb = bx*bx + by*by + bz*bz;
-    let g = gamma(beta((v*v).sqrt())?);
+    let g = gamma(beta(v.r())?);
     let mut ll = FourMat::eye();
     if bb > 0.0 {
         ll = FourMat::new(FourVec::new(g,-g*bx,-g*by,-g*bz),

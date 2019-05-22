@@ -31,6 +31,7 @@ pub use tree::gamma;
 pub use tree::boost;
 pub use tree::FourVec;
 pub use tree::FourMat;
+pub use tree::LightSpeedError;
 
 pub use tree::ThreeMat;
 pub use tree::ThreeVec;
