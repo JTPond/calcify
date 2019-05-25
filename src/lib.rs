@@ -4,6 +4,10 @@
 //!  A crate for 3-D and 4-D vector and matrix algebra, conceived for use in physics simulations. Builds out from a basic ThreeVec struct including most commonly used operations built in.
 //!  Includes physics constants, 3 and 4-D vectors and matrices and many associated operations, collections, histograms, and output trees, which are serialized in json or MessagePack.
 //!
+//! ## ICalcify is here!
+//!
+//! Check it out [here!](https://github.com/JTPond/ICalcify "ICalcify GitHub")
+//!
 //! ## Notes
 //!* Added a compact json format to Serialization as `to_jsonc()`, which is array intensive, instead to object intensive. Also added binary Serialization to MessagePack using the rmp crate as `to_msg()`. The format is like jsonc, not json. The on disk savings of jsonc over json can be ~20%, and the savings for msg over json can be ~63%. 
 //!
@@ -15,8 +19,6 @@
 //!
 //! * FourMat::lambda() has been replaced by fn boost(initial: FourVec, v: ThreeVec). The math has been changed.
 //!
-//! ## todo
-//! * The goal going forward is to build a fairly robust data processing tool in Python. Keep an eye out for that. 
 mod tree;
 
 pub use tree::Branch;
