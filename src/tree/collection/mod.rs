@@ -308,6 +308,7 @@ impl<T: Serializable> Collection<T> {
              let new_vec: Vec<T> = self.vec.iter().filter(close).cloned().collect();
              Collection::from_vec(new_vec)
     }
+    
 }
 
 impl<T: Serializable> Serializable for Collection<T> {
@@ -329,6 +330,24 @@ impl<T: Serializable> Serializable for Collection<T> {
     }
 }
 
+/// Collects an iterator into a Collection, i.e. provides collect().
+///
+/// # Example
+/// ```
+/// use calcify::FourVec;
+/// use calcify::Collection;
+///
+/// let mut col4V: Collection<FourVec> = Collection::empty();
+/// let mut colf6: Collection<f64> = Collection::empty();
+/// for _i in 0..9999 {
+///     col4V.push(FourVec::new(1.0,0.0,0.0,0.0));
+///     colf6.push(1.0);
+/// }
+/// 
+/// let tCol: Collection<f64> = col4V.into_iter().map(|x| x.s()).collect();
+///
+/// assert_eq!(colf6, tCol);
+/// ```
 impl<T: Serializable> FromIterator<T> for Collection<T> {
     fn from_iter<I: IntoIterator<Item=T>>(iter: I) -> Self {
         let mut c = Collection::empty();
@@ -336,6 +355,30 @@ impl<T: Serializable> FromIterator<T> for Collection<T> {
             c.push(i);
         }
         c
+    }
+}
+
+/// Returns the internal Vec iterator
+///
+/// # Example
+/// ```
+/// use calcify::FourVec;
+/// use calcify::Collection;
+///
+/// let mut col4V: Collection<FourVec> = Collection::empty();
+/// for _i in 0..9999 {
+///     col4V.push(FourVec::new(1.0,0.0,0.0,0.0));
+/// }
+///
+/// assert_eq!(FourVec::new(9999.0,0.0,0.0,0.0),
+///             col4V.into_iter().fold(FourVec::new(0.0,0.0,0.0,0.0), |acc, x| acc + x));
+/// ```
+impl<T: Serializable> IntoIterator for Collection<T> {
+    type Item = T;
+    type IntoIter = ::std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.vec.into_iter()
     }
 }
 
