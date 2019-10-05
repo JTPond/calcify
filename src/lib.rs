@@ -9,9 +9,11 @@
 //! Check it out [here!](https://github.com/JTPond/ICalcify "ICalcify GitHub")
 //!
 //! ## Notes
-//!* Added LightSpeedError type for beta()
+//! * Fixed Warnings in example and fixed deprecated code in LightSpeedError
 //!
-//!* Added a compact json format to Serialization as `to_jsonc()`, which is array intensive, instead to object intensive. Also added binary Serialization to MessagePack using the rmp crate as `to_msg()`. The format is like jsonc, not json. The on disk savings of jsonc over json can be ~20%, and the savings for msg over json can be ~63%. 
+//! * Added LightSpeedError type for beta()
+//!
+//! * Added a compact json format to Serialization as `to_jsonc()`, which is array intensive, instead to object intensive. Also added binary Serialization to MessagePack using the rmp crate as `to_msg()`. The format is like jsonc, not json. The on disk savings of jsonc over json can be ~20%, and the savings for msg over json can be ~63%.
 //!
 //! * Now includes example of a many body simulation "universe_in_a_box" use `cargo run --example universe_in_a_box` This could take several seconds.
 //!
