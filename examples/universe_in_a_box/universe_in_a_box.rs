@@ -32,19 +32,6 @@ pub struct Universe {
 }
 
 impl Particle {
-    pub fn new(pid: usize, mass: f64, radius: f64, charge: f64,
-                position: ThreeVec, velocity: ThreeVec) -> Particle {
-        Particle {
-            pid,
-            mass,
-            radius,
-            charge,
-            position,
-            velocity,
-            t_force: ThreeVec::new(0.0,0.0,0.0),
-        }
-    }
-
     pub fn dust(pid: usize, max: f64) -> Particle {
         let mass = 100.0;
         let radius = 1.0;
@@ -128,17 +115,6 @@ impl Serializable for Particle {
 }
 
 impl Universe {
-    pub fn new(state: Vec<Particle>, dt: f64) -> Universe {
-        let energy = 0.0;
-        let previous_state = state.clone().to_vec();
-        Universe {
-            dt,
-            energy,
-            state,
-            previous_state,
-        }
-    }
-
     pub fn cloud(size: f64, n: usize, dt: f64) -> Universe {
         let energy = 0.0;
         let mut state: Vec<Particle> = Vec::new();

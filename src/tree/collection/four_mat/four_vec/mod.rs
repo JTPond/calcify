@@ -20,7 +20,7 @@ pub use three_mat::Serializable;
 extern crate rmp;
 use rmp::encode::*;
 
-/// Cannot have a velocity greater than C_LIGHT 
+/// Cannot have a velocity greater than C_LIGHT
 #[derive(Debug,Clone)]
 pub struct LightSpeedError;
 
@@ -35,7 +35,7 @@ impl error::Error for LightSpeedError {
          "Cannot have a velocity greater than calcify::C_LIGHT"
     }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         // Generic error, underlying cause isn't tracked.
         None
     }
@@ -266,7 +266,7 @@ impl Serializable for FourVec {
             self.m0(), self.m1(), self.m2(), self.m3())
     }
     fn to_jsonc(&self) -> String {
-        format!("[{},{},{},{}]", self.m0(), self.m1(), self.m2(), self.m3()) 
+        format!("[{},{},{},{}]", self.m0(), self.m1(), self.m2(), self.m3())
     }
     fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
         let mut buf = Vec::with_capacity(5);

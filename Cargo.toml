@@ -18,6 +18,8 @@ rmp = "^0.8"
 rand = "0.6.1"
 rmp = "^0.8"
 threadpool = "1.7.1"
+lazy_static = "1.4.0"
+chrono = "0.4.9"
 
 [badges]
 maintenance = { status = "actively-developed" }
