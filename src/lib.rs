@@ -4,7 +4,7 @@
 //!  A crate for 3-D and 4-D vector and matrix algebra, conceived for use in physics simulations. Builds out from a basic ThreeVec struct including most commonly used operations built in.
 //!  Includes physics constants, 3 and 4-D vectors and matrices and many associated operations, collections, histograms, and output trees, which are serialized in json or MessagePack.
 //!
-//! ## ICalcify is here!
+//! ## ICalcify
 //!
 //! Check it out [here!](https://github.com/JTPond/ICalcify "ICalcify GitHub")
 //!
