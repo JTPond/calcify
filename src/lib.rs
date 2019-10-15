@@ -27,6 +27,8 @@ mod tree;
 
 pub use tree::Branch;
 pub use tree::Tree;
+pub use tree::Feed;
+pub use tree::FeedTree;
 pub use tree::Collection;
 pub use tree::Bin;
 pub use tree::Point;

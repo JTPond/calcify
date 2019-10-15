@@ -2,6 +2,11 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::num::ParseFloatError;
 
+mod feedtree;
+
+pub use feedtree::Feed;
+pub use feedtree::FeedTree;
+
 mod collection;
 
 pub use collection::Collection;
