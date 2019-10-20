@@ -9,18 +9,19 @@ use std::str::FromStr;
 use std::num::ParseFloatError;
 
 mod four_vec;
+
 pub use four_vec::Sinv;
 pub use four_vec::beta;
 pub use four_vec::gamma;
 pub use four_vec::FourVec;
 pub use four_vec::LightSpeedError;
 
-pub use four_vec::ThreeMat;
-pub use four_vec::ThreeVec;
-pub use four_vec::{radians_between, degrees_between};
+use crate::three_mat;
+use crate::utils;
 
-pub use four_vec::consts;
-pub use four_vec::Serializable;
+use three_mat::ThreeVec;
+
+use utils::Serializable;
 
 extern crate rmp;
 use rmp::encode::*;

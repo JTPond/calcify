@@ -12,7 +12,15 @@ Look forward to that in the coming months.
 
 Check it out [here!](https://github.com/JTPond/ICalcify "ICalcify GitHub")
 
+## RFI
+
+If you have any ideas for functionality for the Feed trait, please open an issue on github. 
+
 ## Notes
+* Added Feed trait and FeedTree type for mutable data feeds.
+
+* Updated organization of source files.
+
 * Fixed Warnings in example and fixed deprecated code in LightSpeedError
 
 * Added LightSpeedError type for beta()

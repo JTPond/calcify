@@ -3,22 +3,9 @@ use std::iter::FromIterator;
 use std::str::FromStr;
 use std::num::ParseFloatError;
 
-mod four_mat;
+use crate::utils;
 
-pub use four_mat::Sinv;
-pub use four_mat::beta;
-pub use four_mat::gamma;
-pub use four_mat::boost;
-pub use four_mat::FourVec;
-pub use four_mat::FourMat;
-pub use four_mat::LightSpeedError;
-
-pub use four_mat::ThreeMat;
-pub use four_mat::ThreeVec;
-pub use four_mat::{radians_between, degrees_between};
-
-pub use four_mat::consts;
-pub use four_mat::Serializable;
+use utils::Serializable;
 
 extern crate rmp;
 use rmp::encode::*;
@@ -308,7 +295,7 @@ impl<T: Serializable> Collection<T> {
              let new_vec: Vec<T> = self.vec.iter().filter(close).cloned().collect();
              Collection::from_vec(new_vec)
     }
-    
+
 }
 
 impl<T: Serializable> Serializable for Collection<T> {
@@ -343,7 +330,7 @@ impl<T: Serializable> Serializable for Collection<T> {
 ///     col4V.push(FourVec::new(1.0,0.0,0.0,0.0));
 ///     colf6.push(1.0);
 /// }
-/// 
+///
 /// let tCol: Collection<f64> = col4V.into_iter().map(|x| x.s()).collect();
 ///
 /// assert_eq!(colf6, tCol);
@@ -415,7 +402,7 @@ impl Collection<f64> {
     ///
     /// # Panics
     ///
-    /// * If num_bins is less than 2 
+    /// * If num_bins is less than 2
     ///
     /// # Example
     /// ```

@@ -24,6 +24,9 @@
 //! * FourMat::lambda() has been replaced by fn boost(initial: FourVec, v: ThreeVec). The math has been changed.
 //!
 mod tree;
+mod four_mat;
+mod three_mat;
+mod utils;
 
 pub use tree::Branch;
 pub use tree::Tree;
@@ -33,17 +36,17 @@ pub use tree::Collection;
 pub use tree::Bin;
 pub use tree::Point;
 
-pub use tree::Sinv;
-pub use tree::beta;
-pub use tree::gamma;
-pub use tree::boost;
-pub use tree::FourVec;
-pub use tree::FourMat;
-pub use tree::LightSpeedError;
+pub use four_mat::Sinv;
+pub use four_mat::beta;
+pub use four_mat::gamma;
+pub use four_mat::boost;
+pub use four_mat::FourVec;
+pub use four_mat::FourMat;
+pub use four_mat::LightSpeedError;
 
-pub use tree::ThreeMat;
-pub use tree::ThreeVec;
-pub use tree::{radians_between, degrees_between};
+pub use three_mat::ThreeMat;
+pub use three_mat::ThreeVec;
+pub use three_mat::{radians_between, degrees_between};
 
-pub use tree::consts;
-pub use tree::Serializable;
+pub use utils::consts;
+pub use utils::Serializable;

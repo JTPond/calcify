@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use super::collection;
 
 use collection::Collection;
-use collection::Serializable;
+
+use crate::utils;
+
+use utils::Serializable;
 
 extern crate rmp;
 use rmp::encode::*;
@@ -38,7 +41,7 @@ impl<T: Serializable> Feed<T> for Collection<T> {
     }
 }
 
-
+/// Tree of Collections of only a single type, which impl the Feed trait for added functionality
 pub struct FeedTree<T: Serializable> {
     metadata: HashMap<&'static str,&'static str>,
     datafeeds: HashMap<&'static str,Box<dyn Feed<T>>>,

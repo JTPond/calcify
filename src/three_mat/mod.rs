@@ -12,8 +12,9 @@ use std::num::ParseFloatError;
 mod three_vec;
 pub use three_vec::ThreeVec;
 pub use three_vec::{radians_between, degrees_between};
-pub use three_vec::consts;
-pub use three_vec::Serializable;
+
+use crate::utils;
+use utils::Serializable;
 
 extern crate rmp;
 use rmp::encode::*;

@@ -10,12 +10,13 @@ use std::fmt;
 use std::str::FromStr;
 use std::num::ParseFloatError;
 
-mod three_mat;
-pub use three_mat::ThreeMat;
-pub use three_mat::ThreeVec;
-pub use three_mat::{radians_between, degrees_between};
-pub use three_mat::consts;
-pub use three_mat::Serializable;
+use crate::three_mat;
+use crate::utils;
+
+use three_mat::ThreeVec;
+
+use utils::consts;
+use utils::Serializable;
 
 extern crate rmp;
 use rmp::encode::*;

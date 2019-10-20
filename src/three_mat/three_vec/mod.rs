@@ -14,11 +14,8 @@ use std::num::ParseFloatError;
 use self::rand::thread_rng;
 use self::rand::distributions::{Distribution, Uniform};
 
-/// consts module
-pub mod consts;
-
-pub mod serializable;
-pub use serializable::Serializable;
+use crate::utils;
+use utils::Serializable;
 
 extern crate rmp;
 use rmp::encode::*;
@@ -137,7 +134,7 @@ impl Serializable for ThreeVec {
         format!("{{\"x0\":{},\"x1\":{},\"x2\":{}}}", self.x0(), self.x1(), self.x2())
     }
     fn to_jsonc(&self) -> String {
-        format!("[{},{},{}]", self.x0(), self.x1(), self.x2()) 
+        format!("[{},{},{}]", self.x0(), self.x1(), self.x2())
     }
     fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
         let mut buf = Vec::with_capacity(4);
