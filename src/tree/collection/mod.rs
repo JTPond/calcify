@@ -447,6 +447,7 @@ mod tests {
     use std::io::prelude::*;
     use std::io::BufWriter;
     use std::fs::File;
+    use crate::ThreeVec;
     use super::*;
 
     #[test]

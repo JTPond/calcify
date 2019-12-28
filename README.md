@@ -5,18 +5,16 @@ Includes physics constants, 3 and 4-D vectors and matrices and many associated o
 
 ## CalcifyLab
 
-Beginning work on a new lib crate to make simulations (such as the example) more strait forward.
+Beginning work on a new lib crate to make simulations (such as the example) more straightforward.
 Look forward to that in the coming months.
 
 ## ICalcify
 
 Check it out [here!](https://github.com/JTPond/ICalcify "ICalcify GitHub")
 
-## RFI
-
-If you have any ideas for functionality for the Feed trait, please open an issue on github. 
-
 ## Notes
+* New types, ThreeField and ThreeVecField. These are wrapper function around function pointers. They will have limited functionality for most users, but they will be important for typing in CalcifyLab.
+
 * Added Feed trait and FeedTree type for mutable data feeds.
 
 * Updated organization of source files.
