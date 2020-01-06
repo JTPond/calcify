@@ -13,6 +13,8 @@ Look forward to that in the coming months.
 Check it out [here!](https://github.com/JTPond/ICalcify "ICalcify GitHub")
 
 ## Notes
+* ThreeField and ThreeVecField updated to use ThreeVec as input. This was the correct design decision from the beginning. 
+ 
 * New types, ThreeField and ThreeVecField. These are wrapper function around function pointers. They will have limited functionality for most users, but they will be important for typing in CalcifyLab.
 
 * Added Feed trait and FeedTree type for mutable data feeds.
