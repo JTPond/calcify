@@ -23,9 +23,9 @@ use calcify::Serializable;
 fn main() {
     lazy_static!{
         static ref UNIVERSE_RANGE: f64 = 1.0;
-        static ref UNIVERSE_NUM: usize = 4000;
+        static ref UNIVERSE_NUM: usize = 400;
         static ref UNIVERSE_DT: f64 = 0.01;
-        static ref RUN_T: usize = 650;
+        static ref RUN_T: usize = 300;
         static ref NOW: DateTime<Local> = Local::now();
         static ref NOWS: String = NOW.format("%m/%d/%Y %H:%M").to_string();
         static ref DETAILS: String = format!("Universe Range: {}, Number of Particles: {}, Delta T: {}, Time steps: {}, Total Time: {}", *UNIVERSE_RANGE, *UNIVERSE_NUM, *UNIVERSE_DT, *RUN_T, (*RUN_T as f64)*(*UNIVERSE_DT));

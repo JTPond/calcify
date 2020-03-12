@@ -157,31 +157,3 @@ impl Universe {
         self.state = cur_state;
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_access() {
-        let test_vec1 = ThreeVec::new(1.0,2.0,3.0);
-        assert_eq!(*test_vec1.x1(),2.0)
-    }
-
-    #[test]
-    fn forcer() {
-        let mut universe = Universe::new(
-            vec![
-                Particle::new(0,1.0,1.0,0.0,
-                    ThreeVec::new(6.0,8.0,24.0),ThreeVec::new(1.0,2.0,3.0)),
-                Particle::new(1,1.0,1.0,0.0,
-                    ThreeVec::new(3.0,4.0,12.0),ThreeVec::new(1.0,2.0,3.0))
-            ],
-            0.1
-        );
-        let op = universe.state[1];
-        universe.state[0].force(&op);
-        assert_eq!(*universe.state[0].f(),
-         ThreeVec::new(3.0/13.0,4.0/13.0,12.0/13.0)*(-6.67408e-11/(13.0*13.0)))
-    }
-}
