@@ -7,6 +7,7 @@ use std::ops::Sub;
 use std::ops::SubAssign;
 use std::ops::Mul;
 use std::ops::Neg;
+use std::iter;
 use std::fmt;
 use std::str::FromStr;
 use std::num::ParseFloatError;
@@ -175,6 +176,13 @@ impl Add for ThreeVec {
             x1: self.x1 + *other.x1(),
             x2: self.x2 + *other.x2(),
         }
+    }
+}
+
+impl iter::Sum for ThreeVec {
+    fn sum<I>(iter: I) -> ThreeVec
+    where I: Iterator<Item = ThreeVec> {
+        iter.fold(ThreeVec { x0: 0.0, x1: 0.0, x2: 0.0 }, |a, b| a + b)
     }
 }
 

@@ -2,3 +2,5 @@
 **/*.rs.bk
 Cargo.lock
 .swp
+test_*.json
+universe.msg

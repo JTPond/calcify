@@ -5,6 +5,7 @@ use std::ops::Sub;
 use std::ops::SubAssign;
 use std::ops::Mul;
 use std::ops::Neg;
+use std::iter;
 use std::error;
 use std::fmt;
 use std::str::FromStr;
@@ -316,6 +317,13 @@ impl Add for FourVec {
     }
 }
 
+impl iter::Sum for FourVec {
+    fn sum<I>(iter: I) -> FourVec
+    where I: Iterator<Item = FourVec> {
+        iter.fold(FourVec { m0: 0.0, m1: 0.0, m2: 0.0, m3: 0.0 }, |a, b| a + b)
+    }
+}
+
 impl AddAssign for FourVec {
     fn add_assign(&mut self, other: FourVec) {
         self.m0 += *other.m0();
@@ -416,6 +424,13 @@ mod tests {
         let v = 149_896_229.0;
         assert_eq!(beta(v).unwrap(),0.5);
         assert!(beta(10e10).is_err(),"Beta must be ltgt 1.0");
+    }
+
+    #[test]
+    fn test_sum() {
+        let vec: Vec<FourVec> = vec![FourVec::new(5.0,2.0,2.0,2.0),FourVec::new(5.0,2.0,2.0,2.0)];
+        let res: FourVec = vec.into_iter().sum();
+        assert_eq!(res,FourVec::new(10.0,4.0,4.0,4.0));
     }
 
     #[test]

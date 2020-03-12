@@ -1,7 +1,7 @@
 [package]
 name = "calcify"
 description = "Physics vector library"
-version = "0.6.2"
+version = "0.6.3"
 authors = ["JTPond <jtpond42@gmail.com>"]
 edition = "2018"
 readme = "README.md"
@@ -17,9 +17,9 @@ rmp = "^0.8"
 [dev-dependencies]
 rand = "^0.6"
 rmp = "^0.8"
-threadpool = "1.7.1"
 lazy_static = "1.4.0"
 chrono = "^0.4"
+rayon = "1.3.0"
 
 [badges]
 maintenance = { status = "actively-developed" }

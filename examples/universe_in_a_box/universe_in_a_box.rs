@@ -1,8 +1,7 @@
-extern crate threadpool;
-use threadpool::ThreadPool;
 use std::fmt;
-use std::sync::{Arc, Mutex};
-use std::sync::mpsc::channel;
+
+extern crate rayon;
+use rayon::prelude::*;
 
 extern crate rmp;
 use rmp::encode::*;
@@ -82,15 +81,17 @@ impl Particle {
         self.velocity += *dv;
     }
 
-    pub fn force(&mut self, part2: &Particle) {
+    pub fn force(&mut self, parts2: &Vec<Particle>) {
         let g: f64 = 6.67408e-11;
-        let rmrp = self.position - *part2.r();
-        let r2 = rmrp*rmrp;
-        self.t_force += (rmrp*(1.0/r2.sqrt()))*((-g*self.mass*part2.m())*(1.0/r2));
-    }
-
-    pub fn zero_force(&mut self) {
-        self.t_force = ThreeVec::new(0.0,0.0,0.0);
+        self.t_force = parts2.par_iter().map(|&part2| {
+            if *part2.pid() != self.pid {
+                let rmrp = self.position - *part2.r();
+                let r2 = rmrp*rmrp;
+                return (rmrp*(1.0/r2.sqrt()))*((-g*self.mass*part2.m())*(1.0/r2));
+            } else {
+                return ThreeVec::new(0.0,0.0,0.0);
+            }
+        }).sum();
     }
 
 }
@@ -131,60 +132,29 @@ impl Universe {
         }
     }
 
-    pub fn run(&mut self, t: usize, p: usize) {
-        let cur_state = Arc::new(Mutex::new(self.state.clone()));
-        let pool = ThreadPool::new(p);
-        let (tx,rx) = channel();
-        for _ in 0..t {
-            let part_len = self.previous_state.len();
-            let prev_state = Arc::new(self.previous_state.clone());
-            let mut n_jobs = 0;
+    pub fn run(&mut self, t: usize) {
+        let mut cur_state = self.state.clone();
+        // let pool = ThreadPool::new(p);
+        // let (tx,rx) = channel();
+        println!("Start run");
+        for ti in 0..t {
+            if ti%100 == 0 {println!("timestamp: {}", ti);}
+            let prev_state = self.previous_state.clone();
             for i in 0..self.state.len() as usize{
-                n_jobs+=1;
-                let tx = tx.clone();
-                let dt = self.dt;
-                let cur_state = cur_state.clone();
-                let prev_state = prev_state.clone();
-                pool.execute(move|| {
-                    let mut cur_state = cur_state.lock().unwrap();
-                    cur_state[i].zero_force();
-                    for j in 0..part_len{
-                        if cur_state[i].pid() != prev_state[j].pid() {
-                            cur_state[i].force(&prev_state[j]);
-                        }
-                    }
-                    let diff = (*cur_state[i].v()*dt)+(*cur_state[i].f()*0.5*dt*dt);
-                    cur_state[i].translate(&diff);
-                    tx.send(1).expect("channel will be there waiting for the pool");
-                })
+                cur_state[i].force(&prev_state);
+                let diff = (*cur_state[i].v()*self.dt)+(*cur_state[i].f()*0.5*self.dt*self.dt);
+                cur_state[i].translate(&diff);
             }
-            assert_eq!(rx.iter().take(n_jobs).fold(0, |a, b| a + b),n_jobs);
-            n_jobs = 0;
+            let lo_state = cur_state.clone();
             for i in 0..self.state.len() as usize{
-                n_jobs+=1;
-                let tx = tx.clone();
-                let dt = self.dt;
-                let cur_state = cur_state.clone();
-                pool.execute(move|| {
-                    let mut cur_state = cur_state.lock().unwrap();
-                    let pre_force = *cur_state[i].f();
-                    cur_state[i].zero_force();
-                    for j in 0..part_len{
-                        if cur_state[i].pid() != cur_state[j].pid() {
-                            let now_state = cur_state[j];
-                            cur_state[i].force(&now_state);
-                        }
-                    }
-                    let diff = (*cur_state[i].f() + pre_force)*0.5*dt;
-                    cur_state[i].accelerate(&diff);
-                    tx.send(1).expect("channel will be there waiting for the pool");
-                })
+                let pre_force = *cur_state[i].f();
+                cur_state[i].force(&lo_state);
+                let diff = (*cur_state[i].f() + pre_force)*0.5*self.dt;
+                cur_state[i].accelerate(&diff);
             }
-            assert_eq!(rx.iter().take(n_jobs).fold(0, |a, b| a + b),n_jobs);
-            let temp_state = cur_state.clone();
-            self.previous_state = temp_state.lock().unwrap().clone();
+            self.previous_state = cur_state.clone();
         }
-        self.state = Arc::try_unwrap(cur_state).unwrap().into_inner().unwrap();
+        self.state = cur_state;
     }
 }
 
