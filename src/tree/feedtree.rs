@@ -78,8 +78,11 @@ impl<T: 'static + Serializable> FeedTree<T> {
         }
     }
 
-    pub fn add_field(&mut self, key: &'static str, f: &'static str) {
-        self.metadata.insert(key,f);
+    pub fn add_field(&mut self, key: &'static str, f: &'static str) -> Result<(),String> {
+        if let Some(_) = self.metadata.insert(key,f) {
+            return Err(format!("{} is already a field",key));
+        }
+        Ok(())
     }
 
     /// Inserts new Collection<T> into FeedTree.
@@ -88,12 +91,20 @@ impl<T: 'static + Serializable> FeedTree<T> {
     ///
     /// * `key` - Hash key, &'static str
     /// * `f` - Collection<T: Serializable>
-    pub fn add_feed(&mut self, key: &'static str, f: Collection<T>) {
-        self.datafeeds.insert(key,Box::new(f));
+    pub fn add_feed(&mut self, key: &'static str, f: Collection<T>) -> Result<(),String> {
+        if let Some(_) = self.datafeeds.insert(key,Box::new(f)) {
+            return Err(format!("{} is already a feed",key));
+        }
+        Ok(())
     }
 
-    pub fn write(&mut self, key: &'static str, data: T) {
-        self.datafeeds.get_mut(key).unwrap().record(data);
+    pub fn write(&mut self, key: &'static str, data: T) -> Result<(),String> {
+        if let Some(feed) = self.datafeeds.get_mut(key) {
+            feed.record(data);
+            Ok(())
+        } else {
+            Err(format!("{} does not exist as a key",key))
+        }
     }
 }
 

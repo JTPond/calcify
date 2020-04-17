@@ -216,41 +216,13 @@ impl Tree {
     /// # Panics
     ///
     /// * `t` is invalid
-    pub fn add_branch<T: 'static + Serializable>(&mut self, key: &'static str, b: Collection<T>, t: &'static str) {
-        match t {
-            "f64" => {
-                let br = Branch::new(String::from(t),Box::new(b));
-                self.branches.insert(key,br);
-            },
-            "String" => {
-                let br = Branch::new(String::from(t),Box::new(b));
-                self.branches.insert(key,br);
-            },
-            "ThreeVec" => {
-                let br = Branch::new(String::from(t),Box::new(b));
-                self.branches.insert(key,br);
-            },
-            "ThreeMat" => {
-                let br = Branch::new(String::from(t),Box::new(b));
-                self.branches.insert(key,br);
-            },
-            "FourVec" => {
-                let br = Branch::new(String::from(t),Box::new(b));
-                self.branches.insert(key,br);
-            },
-            "FourMat" => {
-                let br = Branch::new(String::from(t),Box::new(b));
-                self.branches.insert(key,br);
-            },
-            "Bin" => {
-                let br = Branch::new(String::from(t),Box::new(b));
-                self.branches.insert(key,br);
-            },
-            "Point" => {
-                let br = Branch::new(String::from(t),Box::new(b));
-                self.branches.insert(key,br);
-            },
-            x => panic!("Subtype must be one of \"f64\", \"String\", \"ThreeVec\", \"ThreeMat\", \"FourVec\", \"FourMat\", \"Bin\", \"Point\", not {}",x),
+    pub fn add_branch<T: 'static + Serializable>(&mut self, key: &'static str, b: Collection<T>, t: &'static str) -> Result<(),string> {
+        let types = ["f64","String","ThreeVec","ThreeMat","FourVec","FourMat","Bin","Point"];
+        if types.contains(t) {
+            let br = Branch::new(String::from(t),Box::new(b));
+            self.branches.insert(key,br);
+        } else {
+            panic!("Subtype must be one of \"f64\", \"String\", \"ThreeVec\", \"ThreeMat\", \"FourVec\", \"FourMat\", \"Bin\", \"Point\", not {}",x);
         }
     }
 
