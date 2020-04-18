@@ -4,15 +4,11 @@ extern crate lazy_static;
 extern crate calcify;
 extern crate chrono;
 
-mod universe_in_a_box;
-
-use universe_in_a_box::Particle;
-use universe_in_a_box::Universe;
-
-use chrono::prelude::*;
 use std::io::prelude::*;
 use std::io::BufWriter;
 use std::fs::File;
+
+use chrono::prelude::*;
 
 use calcify::Tree;
 use calcify::Collection;
@@ -21,7 +17,12 @@ use calcify::Point;
 use calcify::Serializable;
 use calcify::errors::CalcifyError;
 
-fn main()  -> Result<(),CalcifyError> {
+mod universe_in_a_box;
+
+use universe_in_a_box::Particle;
+use universe_in_a_box::Universe;
+
+fn main() -> Result<(),CalcifyError> {
     lazy_static!{
         static ref UNIVERSE_RANGE: f64 = 1.0;
         static ref UNIVERSE_NUM: usize = 500;

@@ -3,39 +3,56 @@
 A crate for 3-D and 4-D vector and matrix algebra, conceived for use in physics simulations. Builds out from a basic ThreeVec struct including most commonly used operations built in.
 Includes physics constants, 3 and 4-D vectors and matrices and many associated operations, collections, histograms, and output trees, which are serialized in json or MessagePack.
 
-## CalcifyLab
-
-Beginning work on a new lib crate to make simulations (such as the example) more straightforward.
-Look forward to that in the coming months.
-
 ## ICalcify
 
 Check it out [here!](https://github.com/JTPond/ICalcify "ICalcify GitHub")
 
-## Notes
-* Implemented std::iter::Sum for ThreeVec and FourVec
+## Usage
 
-* ThreeField and ThreeVecField updated to use ThreeVec as input. This was the correct design decision from the beginning.
+```
+use std::io::prelude::*;
+use std::io::BufWriter;
+use std::fs::File;
 
-* New types, ThreeField and ThreeVecField. These are wrapper function around function pointers. They will have limited functionality for most users, but they will be important for typing in CalcifyLab.
+extern crate calcify;
 
-* Added Feed trait and FeedTree type for mutable data feeds.
+use calcify::Tree;
+use calcify::Collection;
+use calcify::Bin;
+use calcify::Serializable;
+use calcify::errors::CalcifyError;
 
-* Updated organization of source files.
+mod dummy_experiment_lib;
 
-* Fixed Warnings in example and fixed deprecated code in LightSpeedError
+use dummy_experiment_lib::Projectile;
+use dummy_experiment_lib::Lab;
 
-* Added LightSpeedError type for beta()
+fn main() -> Result<(),CalcifyError> {
+    let mut ttree = Tree::new("Dummy_Exp");
 
-* Added a compact json format to Serialization as `to_jsonc()`, which is array intensive, instead to object intensive. Also added binary Serialization to MessagePack using the rmp crate as `to_msg()`. The format is like jsonc, not json. The on disk savings of jsonc over json can be ~20%, and the savings for msg over json can be ~63%.
+    let mut dummy_lab = Lab::new();
 
-* Now includes example of a many body simulation "universe_in_a_box" use `cargo run --example universe_in_a_box` This could take several seconds.
+    let init_state: Collection<Projectile> = Collection::from_vec(dummy_lab.state.clone());
+    let init_hist: Collection<Bin> = init_state.map(|x| {x.r().r()}).hist(500);
 
-* Branches can now be extracted from Trees, but this is not an ideal process. Trees should still be seen as containers for output only.
+    ttree.add_field("Desc","A Tree for an example that does not exist")?;
 
-* All physics constants are exported in the top in SI units. To retrieve them in Planck or natural units call calcify::Consts::planck() or calcify::Consts::natural().
+    ttree.add_branch("init_state", init_state, "ThreeVec")?;
+    ttree.add_branch("init_hist", init_hist, "Bin")?;
 
-* FourMat::lambda() has been replaced by fn boost(initial: FourVec, v: ThreeVec). The math has been changed.
+
+    dummy_lab.run(1000);
+
+    let f = File::create("lab.msg").unwrap();
+    let mut wr = BufWriter::new(f);
+    wr.write(ttree.to_msg().expect("Failed to convert to msg.").as_slice()).expect("Failed to write to file.");
+    Ok(())
+}
+```
+
+## Example
+
+`cargo run --example universe_in_a_box --release`
 
 ## License
 
