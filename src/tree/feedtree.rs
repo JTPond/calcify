@@ -7,6 +7,7 @@ use collection::Collection;
 use crate::utils;
 
 use utils::Serializable;
+use utils::errors::CalcifyError;
 
 extern crate rmp;
 use rmp::encode::*;
@@ -42,12 +43,12 @@ impl<T: Serializable> Feed<T> for Collection<T> {
 }
 
 /// Tree of Collections of only a single type, which impl the Feed trait for added functionality
-pub struct FeedTree<T: Serializable> {
-    metadata: HashMap<&'static str,&'static str>,
-    datafeeds: HashMap<&'static str,Box<dyn Feed<T>>>,
+pub struct FeedTree<'a, T: Serializable> {
+    metadata: HashMap<&'a str,&'a str>,
+    datafeeds: HashMap<&'a str,Box<dyn Feed<T>>>,
 }
 
-impl<T: 'static + Serializable> FeedTree<T> {
+impl<'a, T: 'static + Serializable> FeedTree<'a,T> {
     /// Returns new FeedTree
     ///
     /// Name and subtype is the only required metadata.
@@ -66,8 +67,9 @@ impl<T: 'static + Serializable> FeedTree<T> {
     /// ftree.add_field("Desc", "This is a FeedTree for testing.");
     /// ftree.add_feed("fcol", f_col);
     /// ftree.write("fcol", 1.0);
+    /// ftree.write("fcol", 2.0);
     /// ```
-    pub fn new(name: &'static str, subtype: &'static str) -> FeedTree<T> {
+    pub fn new(name: &'static str, subtype: &'static str) -> FeedTree<'a,T> {
         let mut md = HashMap::new();
         md.insert("Name",name);
         md.insert("SubType",subtype);
@@ -78,9 +80,9 @@ impl<T: 'static + Serializable> FeedTree<T> {
         }
     }
 
-    pub fn add_field(&mut self, key: &'static str, f: &'static str) -> Result<(),String> {
+    pub fn add_field(&mut self, key: &'a str, f: &'static str) -> Result<(),CalcifyError> {
         if let Some(_) = self.metadata.insert(key,f) {
-            return Err(format!("{} is already a field",key));
+            return Err(CalcifyError::KeyError);
         }
         Ok(())
     }
@@ -89,26 +91,26 @@ impl<T: 'static + Serializable> FeedTree<T> {
     ///
     /// # Arguments
     ///
-    /// * `key` - Hash key, &'static str
+    /// * `key` - Hash key, &'a str
     /// * `f` - Collection<T: Serializable>
-    pub fn add_feed(&mut self, key: &'static str, f: Collection<T>) -> Result<(),String> {
+    pub fn add_feed(&mut self, key: &'a str, f: Collection<T>) -> Result<(),CalcifyError> {
         if let Some(_) = self.datafeeds.insert(key,Box::new(f)) {
-            return Err(format!("{} is already a feed",key));
+            return Err(CalcifyError::KeyError);
         }
         Ok(())
     }
 
-    pub fn write(&mut self, key: &'static str, data: T) -> Result<(),String> {
+    pub fn write(&mut self, key: &'a str, data: T) -> Result<(),CalcifyError> {
         if let Some(feed) = self.datafeeds.get_mut(key) {
             feed.record(data);
             Ok(())
         } else {
-            Err(format!("{} does not exist as a key",key))
+            Err(CalcifyError::KeyError)
         }
     }
 }
 
-impl<T: Serializable> Serializable for FeedTree<T> {
+impl<T: Serializable> Serializable for FeedTree<'_,T> {
     fn to_json(&self) -> String {
         let mut out = String::from("{");
         for (key, val) in &self.metadata {

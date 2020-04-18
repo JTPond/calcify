@@ -6,7 +6,6 @@ use std::ops::SubAssign;
 use std::ops::Mul;
 use std::ops::Neg;
 use std::iter;
-use std::error;
 use std::fmt;
 use std::str::FromStr;
 use std::num::ParseFloatError;
@@ -18,31 +17,10 @@ use three_mat::ThreeVec;
 
 use utils::consts;
 use utils::Serializable;
+use utils::errors::CalcifyError;
 
 extern crate rmp;
 use rmp::encode::*;
-
-/// Cannot have a velocity greater than C_LIGHT
-#[derive(Debug,Clone)]
-pub struct LightSpeedError;
-
-impl fmt::Display for LightSpeedError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,"Cannot have a velocity greater than calcify::C_LIGHT.")
-    }
-}
-
-impl error::Error for LightSpeedError {
-    fn description(&self) -> &str {
-         "Cannot have a velocity greater than calcify::C_LIGHT"
-    }
-
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        // Generic error, underlying cause isn't tracked.
-        None
-    }
-}
-
 
 /// Variants of S space-time invariant
 #[derive(Debug, PartialEq)]
@@ -64,16 +42,16 @@ pub enum Sinv {
 ///
 /// ```
 /// use calcify::beta;
-/// use calcify::LightSpeedError;
+/// use calcify::errors::CalcifyError;
 /// let v = 149_896_229.0;
 /// assert_eq!(beta(v).unwrap(),0.5);
-/// assert!(beta(10e10).is_err(),LightSpeedError);
+/// assert!(beta(10e10).is_err(),CalcifyError::LightSpeed);
 /// ```
-pub fn beta(v: f64) -> Result<f64,LightSpeedError> {
+pub fn beta<'a>(v: f64) -> Result<f64,CalcifyError> {
     let b1 = v/consts::C_LIGHT;
     match b1 <= 1.0 {
         true => Ok(b1),
-        false => Err(LightSpeedError),
+        false => Err(CalcifyError::LightSpeed),
     }
 
 }

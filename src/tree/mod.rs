@@ -24,6 +24,8 @@ use three_mat::ThreeMat;
 use three_mat::ThreeVec;
 
 use utils::Serializable;
+use utils::errors::CalcifyError;
+
 
 extern crate rmp;
 use rmp::encode::*;
@@ -39,9 +41,9 @@ pub struct Branch {
 }
 
 /// Tree of Collections for saving to a file.
-pub struct Tree {
-    metadata: HashMap<&'static str,&'static str>,
-    branches: HashMap<&'static str,Branch>,
+pub struct Tree<'a> {
+    metadata: HashMap<&'a str,&'a str>,
+    branches: HashMap<&'a str,Branch>,
 }
 
 impl Branch {
@@ -166,7 +168,7 @@ impl Branch {
 
 
 
-impl Tree {
+impl<'a> Tree<'a> {
     /// Returns new Tree
     ///
     /// Name is the only required metadata.
@@ -201,8 +203,11 @@ impl Tree {
         }
     }
 
-    pub fn add_field(&mut self, key: &'static str, f: &'static str) {
-        self.metadata.insert(key,f);
+    pub fn add_field(&mut self, key: &'a str, f: &'static str) -> Result<(),CalcifyError> {
+        if let Some(_) = self.metadata.insert(key,f) {
+            return Err(CalcifyError::KeyError);
+        }
+        Ok(())
     }
 
     /// Inserts new branch into Tree.
@@ -216,13 +221,16 @@ impl Tree {
     /// # Panics
     ///
     /// * `t` is invalid
-    pub fn add_branch<T: 'static + Serializable>(&mut self, key: &'static str, b: Collection<T>, t: &'static str) -> Result<(),string> {
+    pub fn add_branch<T: 'static + Serializable>(&mut self, key: &'a str, b: Collection<T>, t: &'static str) -> Result<(),CalcifyError> {
         let types = ["f64","String","ThreeVec","ThreeMat","FourVec","FourMat","Bin","Point"];
-        if types.contains(t) {
+        if types.contains(&t) {
             let br = Branch::new(String::from(t),Box::new(b));
-            self.branches.insert(key,br);
+            if let Some(_) = self.branches.insert(key,br) {
+                return Err(CalcifyError::KeyError);
+            }
+            Ok(())
         } else {
-            panic!("Subtype must be one of \"f64\", \"String\", \"ThreeVec\", \"ThreeMat\", \"FourVec\", \"FourMat\", \"Bin\", \"Point\", not {}",x);
+            panic!("Subtype must be one of \"f64\", \"String\", \"ThreeVec\", \"ThreeMat\", \"FourVec\", \"FourMat\", \"Bin\", \"Point\", not {}",t);
         }
     }
 
@@ -258,7 +266,7 @@ impl Tree {
     /// assert_eq!(Collection::from_vec(vec![String::from("test0"),String::from("test1")]),ex_s_col);
     /// assert_eq!(Collection::from_vec(vec![Bin::new(0.0,1.0,10),Bin::new(1.0,2.0,10),Bin::new(2.0,3.0,10)]),ex_b_col);
     /// ```
-    pub fn get_branch(&mut self, key: &'static str) -> Option<&Branch> {
+    pub fn get_branch(&mut self, key: &'a str) -> Option<&Branch> {
         self.branches.get(key)
     }
 }
@@ -281,7 +289,7 @@ impl Serializable for Branch {
     }
 }
 
-impl Serializable for Tree {
+impl Serializable for Tree<'_> {
     fn to_json(&self) -> String {
         let mut out = String::from("{");
         for (key, val) in &self.metadata {
@@ -333,16 +341,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_tree_json() {
+    fn test_tree_json() -> Result<(),CalcifyError>{
         let f = File::create("test_tree.json").unwrap();
         let mut wr = BufWriter::new(f);
         let fcol: Collection<f64> = Collection::from_vec(vec![0.0,0.0]);
         let mut col_3v: Collection<ThreeVec> = Collection::empty();
         for _i in 0..9 {col_3v.push(ThreeVec::random(1.0));}
         let mut ttree = Tree::new("Test_Tree");
-        ttree.add_field("Desc", "This is a Tree for testing.");
-        ttree.add_branch("fcol", fcol, "f64");
-        ttree.add_branch("col_3v", col_3v, "ThreeVec");
+        ttree.add_field("Desc", "This is a Tree for testing.")?;
+        ttree.add_branch("fcol", fcol, "f64")?;
+        ttree.add_branch("col_3v", col_3v, "ThreeVec")?;
         wr.write(ttree.to_json().as_bytes()).unwrap();
+        Ok(())
     }
 }

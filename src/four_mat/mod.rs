@@ -14,7 +14,6 @@ pub use four_vec::Sinv;
 pub use four_vec::beta;
 pub use four_vec::gamma;
 pub use four_vec::FourVec;
-pub use four_vec::LightSpeedError;
 
 use crate::three_mat;
 use crate::utils;
@@ -22,6 +21,7 @@ use crate::utils;
 use three_mat::ThreeVec;
 
 use utils::Serializable;
+use utils::errors::CalcifyError;
 
 extern crate rmp;
 use rmp::encode::*;
@@ -489,7 +489,7 @@ impl Neg for FourMat {
 /// assert_eq!(boost(vec4,ThreeVec::new(0.0,0.0,0.0)).unwrap(),vec4);
 ///
 /// ```
-pub fn boost(initial: FourVec, v: ThreeVec) -> Result<FourVec,LightSpeedError> {
+pub fn boost<'a>(initial: FourVec, v: ThreeVec) -> Result<FourVec,CalcifyError> {
     let bx = beta(*v.x0())?;
     let by = beta(*v.x1())?;
     let bz = beta(*v.x2())?;
