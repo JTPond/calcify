@@ -9,7 +9,7 @@ Check it out [here!](https://github.com/JTPond/ICalcify "ICalcify GitHub")
 
 ## Usage
 
-```
+```rust
 use std::io::prelude::*;
 use std::io::BufWriter;
 use std::fs::File;
