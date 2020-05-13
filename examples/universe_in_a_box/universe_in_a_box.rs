@@ -104,13 +104,20 @@ impl fmt::Display for Particle{
 
 impl Serializable for Particle {
     fn to_json(&self) -> String {
-        self.r().to_json()
+        format!("{{pid:{}, m:{}, q:{}, r:{}, v:{}}}", self.pid(), self.m(), self.q(), self.r().to_json(), self.v().to_json())
     }
     fn to_jsonc(&self) -> String {
-        self.r().to_jsonc()
+        format!("[{},{},{},{},{}]", self.pid(), self.m(), self.q(), self.r().to_jsonc(), self.v().to_jsonc())
     }
-    fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
-        self.r().to_msg()
+    fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
+        let mut buf = Vec::new();
+        write_array_len(&mut buf, 5)?;
+        write_uint(&mut buf, *self.pid() as u64)?;
+        buf.append(&mut self.m().to_msg()?);
+        buf.append(&mut self.q().to_msg()?);
+        buf.append(&mut self.r().to_msg()?);
+        buf.append(&mut self.v().to_msg()?);
+        Ok(buf)
     }
 
 }

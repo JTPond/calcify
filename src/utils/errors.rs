@@ -6,6 +6,7 @@ use std::fmt;
 pub enum CalcifyError {
     LightSpeed,
     KeyError,
+    ExtractError,
 }
 
 impl fmt::Display for CalcifyError {
@@ -13,6 +14,7 @@ impl fmt::Display for CalcifyError {
         match *self {
             CalcifyError::LightSpeed => write!(f,"Velocity greater than calcify::C_LIGHT."),
             CalcifyError::KeyError => write!(f,"Invalid Key"),
+            CalcifyError::ExtractError => write!(f,"Error on json parse extracting Branch."),
         }
     }
 }
@@ -22,6 +24,7 @@ impl error::Error for CalcifyError {
         match *self {
             CalcifyError::LightSpeed => "Cannot have a velocity greater than calcify::C_LIGHT",
             CalcifyError::KeyError => "Convert HashMap Option behavior to Err on bad keys",
+            CalcifyError::ExtractError => "Pass up FromStr errors",
         }
     }
 

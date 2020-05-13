@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use super::collection;
-
-use collection::Collection;
+use super::Collection;
 
 use crate::utils;
 

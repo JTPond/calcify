@@ -13,6 +13,7 @@ Check it out [here!](https://github.com/JTPond/ICalcify "ICalcify GitHub")
 use std::io::prelude::*;
 use std::io::BufWriter;
 use std::fs::File;
+use std::error;
 
 extern crate calcify;
 
@@ -20,14 +21,13 @@ use calcify::Tree;
 use calcify::Collection;
 use calcify::Bin;
 use calcify::Serializable;
-use calcify::errors::CalcifyError;
 
 mod dummy_experiment_lib;
 
 use dummy_experiment_lib::Projectile;
 use dummy_experiment_lib::Lab;
 
-fn main() -> Result<(),CalcifyError> {
+fn main() -> Result<(),Box<dyn error::Error>> {
     let mut ttree = Tree::new("Dummy_Exp");
 
     let mut dummy_lab = Lab::new();
@@ -37,7 +37,7 @@ fn main() -> Result<(),CalcifyError> {
 
     ttree.add_field("Desc","A Tree for an example that does not exist")?;
 
-    ttree.add_branch("init_state", init_state, "ThreeVec")?;
+    ttree.add_branch("init_state", init_state, "Object")?;
     ttree.add_branch("init_hist", init_hist, "Bin")?;
 
 
