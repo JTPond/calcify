@@ -1,4 +1,6 @@
 use std::fmt;
+use std::str::FromStr;
+use std::error;
 
 extern crate rayon;
 use rayon::prelude::*;
@@ -15,7 +17,6 @@ pub use calcify::Serializable;
 pub struct Particle {
     pid: usize,
     mass: f64,
-    radius: f64,
     charge: f64,
     position: ThreeVec,
     velocity: ThreeVec,
@@ -33,7 +34,6 @@ pub struct Universe {
 impl Particle {
     pub fn dust(pid: usize, max: f64) -> Particle {
         let mass = 100.0;
-        let radius = 1.0;
         let charge = 0.0;
         let position = ThreeVec::random(max);
         let velocity = ThreeVec::new(0.0,0.0,0.0);
@@ -41,7 +41,6 @@ impl Particle {
         Particle {
             pid,
             mass,
-            radius,
             charge,
             position,
             velocity,
@@ -104,7 +103,7 @@ impl fmt::Display for Particle{
 
 impl Serializable for Particle {
     fn to_json(&self) -> String {
-        format!("{{pid:{}, m:{}, q:{}, r:{}, v:{}}}", self.pid(), self.m(), self.q(), self.r().to_json(), self.v().to_json())
+        format!("{{\"pid\":{},\"m\":{},\"q\":{},\"r\":{},\"v\":{}}}", self.pid(), self.m(), self.q(), self.r().to_json(), self.v().to_json())
     }
     fn to_jsonc(&self) -> String {
         format!("[{},{},{},{},{}]", self.pid(), self.m(), self.q(), self.r().to_jsonc(), self.v().to_jsonc())
@@ -119,7 +118,45 @@ impl Serializable for Particle {
         buf.append(&mut self.v().to_msg()?);
         Ok(buf)
     }
+}
 
+impl FromStr for Particle {
+    type Err = Box<dyn error::Error>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut pid: usize = 0;
+        let mut mass: f64 = 0.0;
+        let mut charge: f64 = 0.0;
+        let mut position = ThreeVec::new(0.0,0.0,0.0);
+        let mut velocity = ThreeVec::new(0.0,0.0,0.0);
+        for (i,chunk) in s.split_terminator(",\"r\":").enumerate() {
+            match i {
+                1 => {
+                    for (j,vec) in chunk.replace("}}","}!").trim_matches(|p| p == '!').split_terminator(",\"v\":").enumerate() {
+                        match j {
+                            0 => position = ThreeVec::from_str(vec)?,
+                            1 => velocity = ThreeVec::from_str(vec)?,
+                            _ => (),
+                        }
+                    }
+                },
+                0 => {
+                    for (_j,ky_vl) in chunk.trim_matches(|p| p == '{').split_terminator(",").enumerate() {
+                        let n_v: Vec<&str> = ky_vl.split(":").collect();
+                        match n_v[0] {
+                            "\"pid\"" => pid = n_v[1].parse::<usize>()?,
+                            "\"m\"" => mass = n_v[1].parse::<f64>()?,
+                            "\"q\"" => charge = n_v[1].parse::<f64>()?,
+                            x => panic!("Unexpected invalid token {:?}", x),
+                        }
+                    }
+                },
+                _ => (),
+            }
+        }
+
+        Ok(Particle{pid,mass,charge,position,velocity,t_force:ThreeVec::new(0.0,0.0,0.0)})
+    }
 }
 
 impl Universe {

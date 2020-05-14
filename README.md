@@ -5,6 +5,8 @@ Includes physics constants, 3 and 4-D vectors and matrices and many associated o
 
 ## ICalcify
 
+Python command line utility and module for analyzing Tree files. 
+
 Check it out [here!](https://github.com/JTPond/ICalcify "ICalcify GitHub")
 
 ## Usage

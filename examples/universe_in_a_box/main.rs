@@ -27,7 +27,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
         static ref UNIVERSE_RANGE: f64 = 1.0;
         static ref UNIVERSE_NUM: usize = 500;
         static ref UNIVERSE_DT: f64 = 0.01;
-        static ref RUN_T: usize = 2000;
+        static ref RUN_T: usize = 200;
         static ref NOW: DateTime<Local> = Local::now();
         static ref NOWS: String = NOW.format("%m/%d/%Y %H:%M").to_string();
         static ref DETAILS: String = format!("Universe Range: {}, Number of Particles: {}, Delta T: {}, Time steps: {}, Total Time: {}", *UNIVERSE_RANGE, *UNIVERSE_NUM, *UNIVERSE_DT, *RUN_T, (*RUN_T as f64)*(*UNIVERSE_DT));
@@ -47,7 +47,6 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     ttree.add_branch("init_state", init_state, "Object")?;
     ttree.add_branch("init_hist", init_hist, "Bin")?;
     ttree.add_branch("init_spread", init_spread, "Point")?;
-
 
     universe.run(*RUN_T);
 
