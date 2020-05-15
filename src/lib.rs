@@ -40,3 +40,4 @@ pub use three_mat::{radians_between, degrees_between};
 pub use utils::consts;
 pub use utils::errors;
 pub use utils::Serializable;
+pub use utils::Deserializable;

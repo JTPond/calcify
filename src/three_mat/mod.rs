@@ -5,8 +5,8 @@ use std::ops::SubAssign;
 use std::ops::Mul;
 use std::ops::Neg;
 use std::fmt;
-use std::str::FromStr;
-use std::num::ParseFloatError;
+use std::error;
+use std::f64::NAN;
 
 /// Three Vector Module
 mod three_vec;
@@ -14,10 +14,12 @@ pub use three_vec::ThreeVec;
 pub use three_vec::{radians_between, degrees_between};
 
 use crate::utils;
-use utils::Serializable;
+use utils::{Serializable, Deserializable};
+use utils::errors::CalcifyError;
 
 extern crate rmp;
 use rmp::encode::*;
+use rmp::decode::*;
 
 /// Three Matrix
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -52,6 +54,24 @@ impl ThreeMat {
             r0,
             r1,
             r2,
+        }
+    }
+
+    /// Returns a new ThreeMat from a slice
+    ///
+    /// # Arguments
+    ///
+    /// * `slice` - &[ThreeVec]
+    ///
+    /// # Panics
+    ///
+    /// * `slice` length < 3
+    pub fn from(slice: &[ThreeVec]) -> ThreeMat {
+
+        ThreeMat {
+            r0: slice[0],
+            r1: slice[1],
+            r2: slice[2],
         }
     }
 
@@ -229,13 +249,6 @@ impl Serializable for ThreeMat {
             self.r2().to_json()
         )
     }
-    fn to_jsonc(&self) -> String {
-        format!("[{},{},{}]",
-            self.r0().to_jsonc(),
-            self.r1().to_jsonc(),
-            self.r2().to_jsonc()
-        )
-    }
     fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
         let mut buf = Vec::new();
         write_array_len(&mut buf, 3)?;
@@ -246,23 +259,36 @@ impl Serializable for ThreeMat {
     }
 }
 
-impl FromStr for ThreeMat {
-    type Err = ParseFloatError;
+impl Deserializable for ThreeMat {
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut r0: ThreeVec = ThreeVec::new(std::f64::NAN,std::f64::NAN,std::f64::NAN);
-        let mut r1: ThreeVec = ThreeVec::new(std::f64::NAN,std::f64::NAN,std::f64::NAN);
-        let mut r2: ThreeVec = ThreeVec::new(std::f64::NAN,std::f64::NAN,std::f64::NAN);
+    fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
+        let mut r0: ThreeVec = ThreeVec::new(NAN,NAN,NAN);
+        let mut r1: ThreeVec = ThreeVec::new(NAN,NAN,NAN);
+        let mut r2: ThreeVec = ThreeVec::new(NAN,NAN,NAN);
         for dim in s.replace("}}","|}").replace("},","}|").replace(":{",":!{").trim_matches(|p| p == '{' || p == '}' ).split_terminator('|') {
             let n_v: Vec<&str> = dim.split(":!").collect();
             match n_v[0] {
-                "\"r0\"" => r0 = ThreeVec::from_str(n_v[1])?,
-                "\"r1\"" => r1 = ThreeVec::from_str(n_v[1])?,
-                "\"r2\"" => r2 = ThreeVec::from_str(n_v[1])?,
-                x => panic!("Unexpected invalid token {:?}", x),
+                "\"r0\"" => r0 = ThreeVec::from_json(n_v[1])?,
+                "\"r1\"" => r1 = ThreeVec::from_json(n_v[1])?,
+                "\"r2\"" => r2 = ThreeVec::from_json(n_v[1])?,
+                _ => return Err(Box::new(CalcifyError::ParseError)),
             }
         }
         Ok(ThreeMat{r0,r1,r2})
+    }
+
+    fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
+        if let Ok(3) = read_array_len(&mut bytes){
+            let mut x: [ThreeVec;3] = [ThreeVec::new(NAN,NAN,NAN);3];
+            for i in 0..3 {
+                let (vec,rest) = ThreeVec::from_msg(&mut bytes)?;
+                x[i] = vec;
+                bytes = rest;
+            }
+            Ok((ThreeMat::from(&x),bytes))
+        } else {
+            Err(Box::new(CalcifyError::ParseError))
+        }
     }
 }
 
@@ -571,6 +597,16 @@ mod tests {
                                     ThreeVec::new(1.0,1.0,1.0),
                                     ThreeVec::new(1.0,1.0,1.0));
         let pp = xx.to_json();
-        assert_eq!(ThreeMat::from_str(&pp).unwrap(),xx);
+        assert_eq!(ThreeMat::from_json(&pp).unwrap(),xx);
+    }
+
+    #[test]
+    fn test_msg_parse() {
+        let xx = ThreeMat::new(ThreeVec::new(1.0,1.0,1.0),
+                                    ThreeVec::new(2.0,2.0,2.0),
+                                    ThreeVec::new(3.0,3.0,3.0));
+        let pp = xx.to_msg().unwrap();
+        let (oo,_) = ThreeMat::from_msg(&pp).unwrap();
+        assert_eq!(oo,xx);
     }
 }

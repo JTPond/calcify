@@ -1,12 +1,13 @@
-use std::str::FromStr;
+use std::error;
 
 mod collection;
 pub use collection::Collection;
 pub use collection::Bin;
 pub use collection::Point;
 
-use crate::utils::Serializable;
-use crate::utils::errors::CalcifyError;
+use crate::utils;
+use utils::{Serializable, Deserializable};
+use utils::errors::CalcifyError;
 
 extern crate rmp;
 use rmp::encode::*;
@@ -31,31 +32,12 @@ impl Branch{
     }
     /// Returns a Collection of the specified subtype from the Branch
     ///
-    pub fn extract<T: Serializable + FromStr>(&self) -> Result<Collection<T>, CalcifyError> {
-        let mut out: Collection<T> = Collection::empty();
-        match &self.subtype[..] {
-            "f64" => {
-                for ff in self.branch.to_json().trim_matches(|p| p == '[' || p == ']' ).split(','){
-                    if let Ok(f) = ff.parse::<T>() {
-                        out.push(f);
-                    }
-                    else {
-                        return Err(CalcifyError::ExtractError);
-                    }
-                }
-            },
-            _ => {
-                for ff in self.branch.to_json().replace("},{","}|{").trim_matches(|p| p == '[' || p == ']' ).split('|'){
-                    if let Ok(f) = T::from_str(&ff) {
-                        out.push(f);
-                    }
-                    else {
-                        return Err(CalcifyError::ExtractError);
-                    }
-                }
-            },
+    pub fn extract<T: Serializable + Deserializable>(&self) -> Result<Collection<T>, Box<dyn error::Error>> {
+        let mut bytes = &(self.branch.to_msg()?)[..];
+        if let Ok((out, _)) = Collection::<T>::from_msg(&mut bytes){
+            return Ok(out);
         }
-        Ok(out)
+        Err(Box::new(CalcifyError::ParseError))
     }
 }
 
@@ -63,9 +45,7 @@ impl Serializable for Branch {
     fn to_json(&self) -> String {
         format!("{{\"branch\":{},\"subtype\":{}}}",self.branch.to_json(),self.subtype.to_json())
     }
-    fn to_jsonc(&self) -> String {
-        format!("{{\"branch\":{},\"subtype\":{}}}",self.branch.to_jsonc(),self.subtype.to_jsonc())
-    }
+
     fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
         let mut buf = Vec::new();
         write_map_len(&mut buf, 2)?;

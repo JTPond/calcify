@@ -1,4 +1,5 @@
 use std::iter::FromIterator;
+use std::error;
 
 mod point;
 mod bin;
@@ -8,10 +9,12 @@ pub use bin::Bin;
 
 use crate::utils;
 
-use utils::Serializable;
+use utils::{Serializable, Deserializable};
+use utils::errors::CalcifyError;
 
 extern crate rmp;
 use rmp::encode::*;
+use rmp::decode::*;
 
 /// A wrapper around the std::vec::vec
 ///
@@ -166,10 +169,7 @@ impl<T: Serializable> Serializable for Collection<T> {
         let str_vec: Vec<String> = self.vec.iter().map(|x| x.to_json()).collect();
         format!("[{}]",str_vec.join(","))
     }
-    fn to_jsonc(&self) -> String {
-        let str_vec: Vec<String> = self.vec.iter().map(|x| x.to_jsonc()).collect();
-        format!("[{}]",str_vec.join(","))
-    }
+
     fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
         let mut buf = Vec::new();
         write_array_len(&mut buf, (self.vec.len()) as u32)?;
@@ -179,6 +179,57 @@ impl<T: Serializable> Serializable for Collection<T> {
         Ok(buf)
     }
 }
+
+
+// _ => {
+// for ff in self.branch.to_json().replace("},{","}|{").trim_matches(|p| p == '[' || p == ']' ).split('|'){
+//     if let Ok(f) = T::from_str(&ff) {
+//         out.push(f);
+//     }
+//     else {
+//         return Err(CalcifyError::ExtractError);
+//     }
+// }
+// },
+
+impl<T: Serializable + Deserializable> Deserializable for Collection<T> {
+    fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
+        let mut out: Self = Collection::empty();
+        let s_iter: String;
+        if s.starts_with("[{") {
+            s_iter = s.replace("},{","}|{");
+        } else {
+            s_iter = s.replace(",","|");
+        }
+        for ff in s_iter.trim_matches(|p| p == '[' || p == ']' ).split('|'){
+            if let Ok(f) = T::from_json(ff) {
+                out.push(f);
+            }
+            else {
+                return Err(Box::new(CalcifyError::ParseError));
+            }
+        }
+        Ok(out)
+    }
+
+    fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
+        let mut out: Self = Collection::empty();
+        if let Ok(len) = read_array_len(&mut bytes){
+            for _ in 0..len {
+                if let Ok((ot,rest)) = T::from_msg(&mut bytes) {
+                    out.push(ot);
+                    bytes = rest;
+                } else {
+                    return Err(Box::new(CalcifyError::ParseError));
+                }
+            }
+            return Ok((out,bytes));
+        }
+        Err(Box::new(CalcifyError::ParseError))
+    }
+
+}
+
 
 /// Collects an iterator into a Collection, i.e. provides collect().
 ///

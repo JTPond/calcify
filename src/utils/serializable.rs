@@ -1,31 +1,37 @@
+use std::marker::Sized;
+use std::error;
+
 extern crate rmp;
 use rmp::encode::*;
-
+use rmp::decode::*;
 /// Serialization trait which all types you intend to put in a Tree need to implement.
 pub trait Serializable {
     /// Return object intensive json string
     /// # I.E.
     /// `FourVec -> {"x0":1.0,"x1":0.0,"x2":0.0,"x3":0.0}`
     fn to_json(&self) -> String;
-    /// Return array intensive compact json string
-    /// # I.E.
-    /// `FourVec -> [1.0,0.0,0.0,0.0]`
-    fn to_jsonc(&self) -> String;
     /// Return Result wrapped Vec<u8> in MsgPack
-    /// Format mimics jsonc *not* json
+    /// Format is *not* like to_json it is array intensive not object
     ///
     /// #Errors
     /// * The rmp library returns `ValueWriteError` on write errors
     fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> ;
 }
 
+pub trait Deserializable {
+
+    fn from_json(string: &str) -> Result<Self, Box<dyn error::Error>>
+        where Self: Sized;
+
+    fn from_msg(bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>>
+        where Self: Sized;
+}
+
 impl Serializable for u64 {
     fn to_json(&self) -> String {
         format!("{}",self)
     }
-    fn to_jsonc(&self) -> String {
-        format!("{}",self)
-    }
+
     fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
         let mut buf = Vec::new();
         write_uint(&mut buf, *self)?;
@@ -33,11 +39,18 @@ impl Serializable for u64 {
     }
 }
 
+impl Deserializable for u64 {
+    fn from_json(string: &str) -> Result<Self, Box<dyn error::Error>> {
+        string.parse::<u64>().map_err(|e| e.into())
+    }
+    fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
+        Ok((read_int(&mut bytes)?,bytes))
+    }
+}
+
+
 impl Serializable for f64 {
     fn to_json(&self) -> String {
-        format!("{}",self)
-    }
-    fn to_jsonc(&self) -> String {
         format!("{}",self)
     }
     fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
@@ -47,12 +60,19 @@ impl Serializable for f64 {
     }
 }
 
+impl Deserializable for f64 {
+    fn from_json(string: &str) -> Result<Self, Box<dyn error::Error>> {
+        string.parse::<f64>().map_err(|e| e.into())
+    }
+    fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
+        Ok((read_f64(&mut bytes)?,bytes))
+    }
+}
+
+
 /// Wraps the String in quotes("").
 impl Serializable for String {
     fn to_json(&self) -> String {
-        format!("\"{}\"",self)
-    }
-    fn to_jsonc(&self) -> String {
         format!("\"{}\"",self)
     }
     fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {

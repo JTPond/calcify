@@ -1,13 +1,16 @@
-use std::str::FromStr;
-use std::num::ParseFloatError;
 use std::ops::AddAssign;
+use std::error;
+use std::u64;
+use std::f64;
 
 extern crate rmp;
 use rmp::encode::*;
+use rmp::decode::*;
 
 use crate::utils;
 
-use utils::Serializable;
+use utils::{Serializable, Deserializable};
+use utils::errors::CalcifyError;
 
 /// A histogram is a Collection of Bins
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -55,9 +58,7 @@ impl Serializable for Bin {
     fn to_json(&self) -> String {
         format!("{{\"count\":{},\"range\":[{},{}]}}",self.count,self.in_edge,self.ex_edge)
     }
-    fn to_jsonc(&self) -> String {
-        format!("[{},[{},{}]]", self.count, self.in_edge, self.ex_edge)
-    }
+
     fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
         let mut buf = Vec::with_capacity(5);
         write_array_len(&mut buf, 2)?;
@@ -69,24 +70,54 @@ impl Serializable for Bin {
     }
 }
 
-impl FromStr for Bin {
-    type Err = ParseFloatError;
+impl Deserializable for Bin {
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
         let mut count: u64 = 0;
-        let mut in_edge: f64 = 0.0;
-        let mut ex_edge: f64 = 0.0;
-        let mut counter = 0;
-        for i in s.replace(":",",").replace("[",",").replace("]",",").trim_matches(|p| p == '{' || p == '}' ).split_terminator(",") {
-            match counter {
-                1 => count = i.parse::<f64>()? as u64,
-                4 => in_edge = i.parse::<f64>()?,
-                5 => ex_edge = i.parse::<f64>()?,
-                _ => (),
+        let mut in_edge: f64 = f64::NAN;
+        let mut ex_edge: f64 = f64::NAN;
+        for (i,dim) in s.replace(":",",").replace("[",",").replace("]",",").trim_matches(|p| p == '{' || p == '}' ).split_terminator(",").enumerate() {
+            match i {
+                0 => (),
+                1 => count = dim.parse::<f64>()? as u64,
+                2 => (),
+                3 => (),
+                4 => in_edge = dim.parse::<f64>()?,
+                5 => ex_edge = dim.parse::<f64>()?,
+                _ => return Err(Box::new(CalcifyError::ParseError)),
             }
-            counter += 1;
         }
-
         Ok(Bin{count,in_edge,ex_edge})
+    }
+
+    fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
+        if let Ok(2) = read_array_len(&mut bytes){
+            let count: u64 = read_int(&mut bytes)?;
+            if let Ok(2) = read_array_len(&mut bytes){
+                let in_edge: f64 = read_f64(&mut bytes)?;
+                let ex_edge: f64 = read_f64(&mut bytes)?;
+                return Ok((Bin{count,in_edge,ex_edge},bytes));
+            }
+        }
+        Err(Box::new(CalcifyError::ParseError))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_parse() {
+        let xx = Bin::new(0.0,1.0,0);
+        let pp = xx.to_json();
+        assert_eq!(Bin::from_json(&pp).unwrap(),xx);
+    }
+
+    #[test]
+    fn test_msg_parse() {
+        let xx = Bin::new(0.0,1.0,0);
+        let pp = xx.to_msg().unwrap();
+        let (oo,_) = Bin::from_msg(&pp).unwrap();
+        assert_eq!(oo,xx);
     }
 }

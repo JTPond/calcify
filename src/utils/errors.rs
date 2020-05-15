@@ -6,7 +6,8 @@ use std::fmt;
 pub enum CalcifyError {
     LightSpeed,
     KeyError,
-    ExtractError,
+    ParseError,
+    LengthError,
 }
 
 impl fmt::Display for CalcifyError {
@@ -14,7 +15,8 @@ impl fmt::Display for CalcifyError {
         match *self {
             CalcifyError::LightSpeed => write!(f,"Velocity greater than calcify::C_LIGHT."),
             CalcifyError::KeyError => write!(f,"Invalid Key"),
-            CalcifyError::ExtractError => write!(f,"Error on json parse extracting Branch."),
+            CalcifyError::ParseError => write!(f,"Error on parse in Deserializable."),
+            CalcifyError::LengthError => write!(f,"Invalid slice length"),
         }
     }
 }
@@ -24,7 +26,8 @@ impl error::Error for CalcifyError {
         match *self {
             CalcifyError::LightSpeed => "Cannot have a velocity greater than calcify::C_LIGHT",
             CalcifyError::KeyError => "Convert HashMap Option behavior to Err on bad keys",
-            CalcifyError::ExtractError => "Pass up FromStr errors",
+            CalcifyError::ParseError => "Probably a formatting error when the data was serialized, or there is a type mismatch.",
+            CalcifyError::LengthError => "Length of slice must match Vector length",
         }
     }
 

@@ -1,6 +1,7 @@
 extern crate rand;
 
 use std::f64;
+use self::f64::NAN;
 use std::ops::Add;
 use std::ops::AddAssign;
 use std::ops::Sub;
@@ -9,17 +10,18 @@ use std::ops::Mul;
 use std::ops::Neg;
 use std::iter;
 use std::fmt;
-use std::str::FromStr;
-use std::num::ParseFloatError;
+use std::error;
 
 use self::rand::thread_rng;
 use self::rand::distributions::{Distribution, Uniform};
 
 use crate::utils;
-use utils::Serializable;
+use utils::{Serializable, Deserializable};
+use utils::errors::CalcifyError;
 
 extern crate rmp;
 use rmp::encode::*;
+use rmp::decode::*;
 
 /// Three Vector
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -48,6 +50,30 @@ impl ThreeVec {
             x0,
             x1,
             x2,
+        }
+    }
+
+    /// Returns a new ThreeVec from a slice
+    ///
+    /// # Arguments
+    ///
+    /// * `slice` - &[f64]
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::ThreeVec;
+    /// let vec3: ThreeVec = ThreeVec::from(&[1.0,1.0,1.0]);
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// * `slice` length < 3
+    pub fn from(slice: &[f64]) -> ThreeVec {
+
+        ThreeVec {
+            x0: slice[0],
+            x1: slice[1],
+            x2: slice[2],
         }
     }
 
@@ -134,9 +160,7 @@ impl Serializable for ThreeVec {
     fn to_json(&self) -> String {
         format!("{{\"x0\":{},\"x1\":{},\"x2\":{}}}", self.x0(), self.x1(), self.x2())
     }
-    fn to_jsonc(&self) -> String {
-        format!("[{},{},{}]", self.x0(), self.x1(), self.x2())
-    }
+
     fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
         let mut buf = Vec::with_capacity(4);
         write_array_len(&mut buf, 3)?;
@@ -147,23 +171,34 @@ impl Serializable for ThreeVec {
     }
 }
 
-impl FromStr for ThreeVec {
-    type Err = ParseFloatError;
+impl Deserializable for ThreeVec {
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut x0: f64 = std::f64::NAN;
-        let mut x1: f64 = std::f64::NAN;
-        let mut x2: f64 = std::f64::NAN;
+    fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
+        let mut x0: f64 = NAN;
+        let mut x1: f64 = NAN;
+        let mut x2: f64 = NAN;
         for dim in s.trim_matches(|p| p == '{' || p == '}' ).split(',') {
             let n_v: Vec<&str> = dim.split(':').collect();
             match n_v[0] {
                 "\"x0\"" => x0 = n_v[1].parse::<f64>()?,
                 "\"x1\"" => x1 = n_v[1].parse::<f64>()?,
                 "\"x2\"" => x2 = n_v[1].parse::<f64>()?,
-                x => panic!("Unexpected invalid token {:?}", x),
+                _ => return Err(Box::new(CalcifyError::ParseError)),
             }
         }
         Ok(ThreeVec{x0,x1,x2})
+    }
+
+    fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
+        if let Ok(3) = read_array_len(&mut bytes){
+            let mut x: [f64;3] = [NAN;3];
+            for i in 0..3 {
+                x[i] = read_f64(&mut bytes)?;
+            }
+            Ok((ThreeVec::from(&x),bytes))
+        } else {
+            Err(Box::new(CalcifyError::ParseError))
+        }
     }
 }
 
@@ -413,6 +448,14 @@ mod tests {
     fn test_parse() {
         let xx = ThreeVec::new(1.0,1.0,1.0);
         let pp = xx.to_json();
-        assert_eq!(ThreeVec::from_str(&pp).unwrap(),xx);
+        assert_eq!(ThreeVec::from_json(&pp).unwrap(),xx);
+    }
+
+    #[test]
+    fn test_msg_parse() {
+        let xx = ThreeVec::new(1.0,2.0,3.0);
+        let pp = xx.to_msg().unwrap();
+        let (oo,_) = ThreeVec::from_msg(&pp).unwrap();
+        assert_eq!(oo,xx);
     }
 }

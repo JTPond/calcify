@@ -10,7 +10,7 @@ use rmp::encode::*;
 
 extern crate calcify;
 pub use calcify::ThreeVec;
-pub use calcify::Serializable;
+use calcify::{Serializable, Deserializable};
 
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -105,9 +105,6 @@ impl Serializable for Particle {
     fn to_json(&self) -> String {
         format!("{{\"pid\":{},\"m\":{},\"q\":{},\"r\":{},\"v\":{}}}", self.pid(), self.m(), self.q(), self.r().to_json(), self.v().to_json())
     }
-    fn to_jsonc(&self) -> String {
-        format!("[{},{},{},{},{}]", self.pid(), self.m(), self.q(), self.r().to_jsonc(), self.v().to_jsonc())
-    }
     fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
         let mut buf = Vec::new();
         write_array_len(&mut buf, 5)?;
@@ -134,8 +131,8 @@ impl FromStr for Particle {
                 1 => {
                     for (j,vec) in chunk.replace("}}","}!").trim_matches(|p| p == '!').split_terminator(",\"v\":").enumerate() {
                         match j {
-                            0 => position = ThreeVec::from_str(vec)?,
-                            1 => velocity = ThreeVec::from_str(vec)?,
+                            0 => position = ThreeVec::from_json(vec)?,
+                            1 => velocity = ThreeVec::from_json(vec)?,
                             _ => (),
                         }
                     }

@@ -75,7 +75,7 @@ impl<'a> Tree<'a> {
     ///
     /// * `key` - Hash key, &'static str
     /// * `b` - Branch,  Collection<T: Serializable>
-    /// * `t` - Collection subtype,  &'static str, one of "f64", "String", "ThreeVec", "ThreeMat", "FourVec", "FourMat", "Bin", "Point"
+    /// * `t` - Collection subtype,  &'static str, one of "f64", "String", "ThreeVec", "ThreeMat", "FourVec", "FourMat", "Bin", "Point", "Object"
     ///
     /// # Panics
     ///
@@ -140,19 +140,7 @@ impl Serializable for Tree<'_> {
         out.push_str("}}");
         out
     }
-    fn to_jsonc(&self) -> String {
-        let mut out = String::from("{");
-        for (key, val) in &self.metadata {
-            out.push_str(format!("\"{}\":\"{}\",",key,val).as_str());
-        }
-        out.push_str("\"branches\":{");
-        for (key, val) in &self.branches {
-            out.push_str(format!("\"{}\":{},",key,val.to_jsonc()).as_str());
-        }
-        out.pop();
-        out.push_str("}}");
-        out
-    }
+
     fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
         let mut buf = Vec::new();
         write_map_len(&mut buf, (self.metadata.len()+1) as u32)?;

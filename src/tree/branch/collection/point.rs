@@ -1,8 +1,7 @@
 extern crate rand;
 
 use std::f64;
-use std::str::FromStr;
-use std::num::ParseFloatError;
+use self::f64::NAN;
 use std::ops::Add;
 use std::ops::AddAssign;
 use std::ops::Sub;
@@ -11,18 +10,20 @@ use std::ops::Mul;
 use std::ops::Neg;
 use std::iter;
 use std::fmt;
+use std::error;
 
 extern crate rmp;
 use rmp::encode::*;
+use rmp::decode::*;
 
 use self::rand::thread_rng;
 use self::rand::distributions::{Distribution, Uniform};
 
 use crate::utils;
+use utils::{Serializable, Deserializable};
+use utils::errors::CalcifyError;
 
-use utils::Serializable;
-
-/// Point, or Two Vector, depending on your perspective. 
+/// Point, or Two Vector, depending on your perspective.
 /// A plot is a Collection of Points
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct Point {
@@ -42,6 +43,29 @@ impl Point {
         Point {
             x,
             y,
+        }
+    }
+
+    /// Returns a new Point from a slice
+    ///
+    /// # Arguments
+    ///
+    /// * `slice` - &[f64]
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::Point;
+    /// let point: Point = Point::from(&[1.0,1.0]);
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// * `slice` length < 2
+    pub fn from(slice: &[f64]) -> Point {
+
+        Point {
+            x: slice[0],
+            y: slice[1],
         }
     }
 
@@ -82,9 +106,7 @@ impl Serializable for Point {
     fn to_json(&self) -> String {
         format!("{{\"x\":{},\"y\":{}}}", self.x, self.y)
     }
-    fn to_jsonc(&self) -> String {
-        format!("[{},{}]", self.x, self.y)
-    }
+
     fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
         let mut buf = Vec::with_capacity(3);
         write_array_len(&mut buf, 2)?;
@@ -94,21 +116,32 @@ impl Serializable for Point {
     }
 }
 
-impl FromStr for Point {
-    type Err = ParseFloatError;
+impl Deserializable for Point {
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut x: f64 = std::f64::NAN;
-        let mut y: f64 = std::f64::NAN;
+    fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
+        let mut x: f64 = NAN;
+        let mut y: f64 = NAN;
         for dim in s.trim_matches(|p| p == '{' || p == '}' ).split(',') {
             let n_v: Vec<&str> = dim.split(':').collect();
             match n_v[0] {
                 "\"x\"" => x = n_v[1].parse::<f64>()?,
                 "\"y\"" => y = n_v[1].parse::<f64>()?,
-                x => panic!("Unexpected invalid token {:?}", x),
+                _ => return Err(Box::new(CalcifyError::ParseError)),
             }
         }
         Ok(Point{x,y})
+    }
+
+    fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
+        if let Ok(2) = read_array_len(&mut bytes){
+            let mut x: [f64;2] = [NAN;2];
+            for i in 0..2 {
+                x[i] = read_f64(&mut bytes)?;
+            }
+            Ok((Point::from(&x),bytes))
+        } else {
+            Err(Box::new(CalcifyError::ParseError))
+        }
     }
 }
 
@@ -315,6 +348,14 @@ mod tests {
     fn test_parse() {
         let xx = Point::new(1.0,1.0);
         let pp = xx.to_json();
-        assert_eq!(Point::from_str(&pp).unwrap(),xx);
+        assert_eq!(Point::from_json(&pp).unwrap(),xx);
+    }
+
+    #[test]
+    fn test_msg_parse() {
+        let xx = Point::new(1.0,1.0);
+        let pp = xx.to_msg().unwrap();
+        let (oo,_) = Point::from_msg(&pp).unwrap();
+        assert_eq!(oo,xx);
     }
 }

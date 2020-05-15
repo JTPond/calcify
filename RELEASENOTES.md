@@ -1,5 +1,10 @@
 # Release Notes
 
+### 0.8:
+* Reorganize files around branch.
+* Update extract.
+* Support "Object" Branches.
+* **Remove support for jsonc.**
 
 ### 0.7: 2020-04-18
 * Added CalcifyError. Dropped lifetime of Tree keys to 'a from 'static. Upgraded Point to be more like a TwoVec.

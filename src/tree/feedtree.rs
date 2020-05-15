@@ -20,10 +20,6 @@ pub trait Feed<T: Serializable> : Serializable {
     fn export_json(&self) -> String {
         Serializable::to_json(self)
     }
-    /// Pass Serializable::to_jsonc up to the Feed trait
-    fn export_jsonc(&self) -> String {
-        Serializable::to_jsonc(self)
-    }
     /// Pass Serializable::to_msg up to the Feed trait
     ///
     /// #Errors
@@ -122,19 +118,7 @@ impl<T: Serializable> Serializable for FeedTree<'_,T> {
         out.push_str("}}");
         out
     }
-    fn to_jsonc(&self) -> String {
-        let mut out = String::from("{");
-        for (key, val) in &self.metadata {
-            out.push_str(format!("\"{}\":\"{}\",",key,val).as_str());
-        }
-        out.push_str("\"datafeeds\":{");
-        for (key, val) in &self.datafeeds {
-            out.push_str(format!("\"{}\":{},",key,val.export_jsonc()).as_str());
-        }
-        out.pop();
-        out.push_str("}}");
-        out
-    }
+
     fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
         let mut buf = Vec::new();
         write_map_len(&mut buf, (self.metadata.len()+1) as u32)?;
