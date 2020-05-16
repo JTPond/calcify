@@ -42,7 +42,7 @@ impl<'a> Tree<'a> {
     /// use calcify::Bin;
     /// use calcify::ThreeVec;
     ///
-    /// let f_col: Collection<f64> = Collection::from_vec(vec![0.0,0.0]);
+    /// let f_col: Collection<f64> = Collection::from(vec![0.0,0.0]);
     /// let mut v3_col: Collection<ThreeVec> = Collection::empty();
     /// for _i in 0..9999 {v3_col.push(ThreeVec::random(1.0));}
     /// let col_hist: Collection<Bin> = v3_col.map(ThreeVec::r).hist(50);
@@ -109,8 +109,8 @@ impl<'a> Tree<'a> {
     /// use calcify::Collection;
     /// use calcify::Bin;
     ///
-    /// let f_col: Collection<f64> = Collection::from_vec(vec![0.0,0.0]);
-    /// let b_col: Collection<Bin> = Collection::from_vec(vec![Bin::new(0.0,1.0,10),Bin::new(1.0,2.0,10),Bin::new(2.0,3.0,10)]);
+    /// let f_col: Collection<f64> = Collection::from(vec![0.0,0.0]);
+    /// let b_col: Collection<Bin> = Collection::from(vec![Bin::new(0.0,1.0,10),Bin::new(1.0,2.0,10),Bin::new(2.0,3.0,10)]);
     /// let mut ttree = Tree::new("Test_Tree");
     /// ttree.add_branch("fcol", f_col, "f64");
     /// ttree.add_branch("bCol", b_col, "Bin");
@@ -118,8 +118,8 @@ impl<'a> Tree<'a> {
     /// let ex_f_col: Collection<f64> = ttree.get_branch("fcol").unwrap().extract().unwrap();
     /// let ex_b_col: Collection<Bin> = ttree.get_branch("bCol").unwrap().extract().unwrap();
     ///
-    /// assert_eq!(Collection::from_vec(vec![0.0,0.0]),ex_f_col);
-    /// assert_eq!(Collection::from_vec(vec![Bin::new(0.0,1.0,10),Bin::new(1.0,2.0,10),Bin::new(2.0,3.0,10)]),ex_b_col);
+    /// assert_eq!(Collection::from(vec![0.0,0.0]),ex_f_col);
+    /// assert_eq!(Collection::from(vec![Bin::new(0.0,1.0,10),Bin::new(1.0,2.0,10),Bin::new(2.0,3.0,10)]),ex_b_col);
     /// ```
     pub fn get_branch(&mut self, key: &'a str) -> Option<&Branch> {
         self.branches.get(key)
@@ -170,7 +170,7 @@ mod tests {
     fn test_tree_json() -> Result<(),CalcifyError>{
         let f = File::create("test_tree.json").unwrap();
         let mut wr = BufWriter::new(f);
-        let fcol: Collection<f64> = Collection::from_vec(vec![0.0,0.0]);
+        let fcol: Collection<f64> = Collection::from(vec![0.0,0.0]);
         let mut col_3v: Collection<ThreeVec> = Collection::empty();
         for _i in 0..9 {col_3v.push(ThreeVec::random(1.0));}
         let mut ttree = Tree::new("Test_Tree");

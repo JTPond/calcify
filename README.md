@@ -34,7 +34,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
 
     let mut dummy_lab = Lab::new();
 
-    let init_state: Collection<Projectile> = Collection::from_vec(dummy_lab.state.clone());
+    let init_state: Collection<Projectile> = Collection::from(dummy_lab.state.clone());
     let init_hist: Collection<Bin> = init_state.map(|x| {x.r().r()}).hist(500);
 
     ttree.add_field("Desc","A Tree for an example that does not exist")?;

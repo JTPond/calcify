@@ -39,11 +39,11 @@ impl<T: Serializable> Collection<T> {
     /// use calcify::FourVec;
     /// use calcify::Collection;
     ///
-    /// let col4V = Collection::from_vec(
+    /// let col4V = Collection::from(
     ///     vec![FourVec::new(10.0,1.0,1.0,1.0)]
     /// );
     /// ```
-    pub fn from_vec(vec: Vec<T>) -> Collection<T> {
+    pub fn from(vec: Vec<T>) -> Collection<T> {
         Collection {
             vec,
         }
@@ -75,7 +75,7 @@ impl<T: Serializable> Collection<T> {
     /// use calcify::FourVec;
     /// use calcify::Collection;
     ///
-    /// let mut col4V = Collection::from_vec(
+    /// let mut col4V = Collection::from(
     ///     vec![FourVec::new(10.0,1.0,1.0,1.0)]
     /// );
     /// assert_eq!(*col4V.at(0),FourVec::new(10.0,1.0,1.0,1.0));
@@ -130,7 +130,7 @@ impl<T: Serializable> Collection<T> {
     /// ```
     pub fn map<F,Z: Serializable>(&self, close: F) -> Collection<Z> where
         F: FnMut(&T) -> Z{
-            Collection::from_vec(self.vec.iter().map(close).collect())
+            Collection::from(self.vec.iter().map(close).collect())
     }
 
     /// Cuts/Filters a function and returns a new Collection<T>
@@ -159,7 +159,7 @@ impl<T: Serializable> Collection<T> {
     pub fn cut<F>(&self, close: F) -> Collection<T> where
 	F: FnMut(&&T) -> bool, T: Clone {
              let new_vec: Vec<T> = self.vec.iter().filter(close).cloned().collect();
-             Collection::from_vec(new_vec)
+             Collection::from(new_vec)
     }
 
 }
@@ -288,17 +288,17 @@ impl Collection<Point> {
     ///
     /// # Arguments
     ///
-    /// * `ind` - Independent variable: Vec<64>
-    /// * `dep` - Dependent variable: Vec<64>
+    /// * `ind` - Independent variable: &[64]
+    /// * `dep` - Dependent variable: &[64]
     ///
     /// # Example
     /// ```
     /// use calcify::Collection;
     /// use calcify::Point;
     ///
-    /// let test_plot: Collection<Point> = Collection::plot(vec![0.0,1.0,2.0],vec![3.0,4.0,5.0]);
+    /// let test_plot: Collection<Point> = Collection::plot(&vec![0.0,1.0,2.0],&vec![3.0,4.0,5.0]);
     /// ```
-    pub fn plot(ind: Vec<f64>, dep: Vec<f64>) -> Collection<Point> {
+    pub fn plot(ind: &[f64], dep: &[f64]) -> Collection<Point> {
         let mut out: Collection<Point> = Collection::empty();
         for (x , y) in ind.iter().zip(dep.iter()) {
             out.push(Point::new(*x,*y));
@@ -389,7 +389,7 @@ mod tests {
     fn test_plot() {
         let f = File::create("test_plot.json").unwrap();
         let mut wr = BufWriter::new(f);
-        let test_plot: Collection<Point> = Collection::plot(vec![0.0,1.0,2.0],vec![3.0,4.0,5.0]);
+        let test_plot: Collection<Point> = Collection::plot(&vec![0.0,1.0,2.0],&vec![3.0,4.0,5.0]);
         wr.write(test_plot.to_json().as_bytes()).unwrap();
     }
 

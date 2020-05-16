@@ -56,7 +56,7 @@ impl<'a, T: 'static + Serializable> FeedTree<'a,T> {
     /// use calcify::FeedTree;
     /// use calcify::Collection;
     ///
-    /// let f_col: Collection<f64> = Collection::from_vec(vec![0.0,0.0]);
+    /// let f_col: Collection<f64> = Collection::from(vec![0.0,0.0]);
     /// let mut ftree: FeedTree<f64> = FeedTree::new("Test_Tree","f64");
     /// ftree.add_field("Desc", "This is a FeedTree for testing.");
     /// ftree.add_feed("fcol", f_col);
