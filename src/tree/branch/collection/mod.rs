@@ -180,18 +180,6 @@ impl<T: Serializable> Serializable for Collection<T> {
     }
 }
 
-
-// _ => {
-// for ff in self.branch.to_json().replace("},{","}|{").trim_matches(|p| p == '[' || p == ']' ).split('|'){
-//     if let Ok(f) = T::from_str(&ff) {
-//         out.push(f);
-//     }
-//     else {
-//         return Err(CalcifyError::ExtractError);
-//     }
-// }
-// },
-
 impl<T: Serializable + Deserializable> Deserializable for Collection<T> {
     fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
         let mut out: Self = Collection::empty();
@@ -227,7 +215,6 @@ impl<T: Serializable + Deserializable> Deserializable for Collection<T> {
         }
         Err(Box::new(CalcifyError::ParseError))
     }
-
 }
 
 
