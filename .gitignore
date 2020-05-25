@@ -3,4 +3,5 @@
 Cargo.lock
 .swp
 test_*.json
+universe_*.json
 *.msg
