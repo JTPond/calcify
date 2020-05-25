@@ -17,12 +17,14 @@ pub trait Serializable {
     /// * The rmp library returns `ValueWriteError` on write errors
     fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> ;
 }
-
+/// Deserialization trait which all types you intend to get out of a Tree need to implement.
+/// Really only designed to work with data that was serialized with the Calcify::Serializable trait
+/// and will not work on arbitrarily modified tree files
 pub trait Deserializable {
-
+    /// Return Self from string
     fn from_json(string: &str) -> Result<Self, Box<dyn error::Error>>
         where Self: Sized;
-
+    /// Return a tuple of Self and a byte array of remaining unparsed bytes from a byte array
     fn from_msg(bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>>
         where Self: Sized;
 }

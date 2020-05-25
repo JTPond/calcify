@@ -28,20 +28,25 @@ use rmp::decode::*;
 pub struct Branch {
     subtype: String,
     branch: Box<dyn Serializable>,
+    buffer: Option<Vec<u8>>,
 }
 
 impl Branch{
     pub fn new(subtype: String, branch: Box<dyn Serializable>) -> Branch{
+        let buffer: Option<Vec<u8>> = None;
         Branch {
             subtype,
             branch,
+            buffer,
         }
     }
     /// Returns a Collection of the specified subtype from the Branch
     ///
-    pub fn extract<T: Serializable + Deserializable>(&self) -> Result<Collection<T>, Box<dyn error::Error>> {
-        let mut bytes = &(self.branch.to_msg()?)[..];
-        if let Ok((out, _)) = Collection::<T>::from_msg(&mut bytes){
+    pub fn extract<T: Serializable + Deserializable>(&mut self) -> Result<Collection<T>, Box<dyn error::Error>> {
+        if self.buffer.is_none() {
+            self.buffer = Some(self.branch.to_msg()?);
+        }
+        if let Ok((out, _)) = Collection::<T>::from_msg(&mut self.buffer.as_ref().unwrap()){
             return Ok(out);
         }
         Err(Box::new(CalcifyError::ParseError))
@@ -68,11 +73,11 @@ impl Deserializable for Branch {
     fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
         let mut subtype: &str = "";
         let mut branch_str: &str = "";
-        let pattern: Vec<char> = "{branch:}".chars().collect();
-        for (i,dim) in s.trim_matches(|p| pattern.contains(&p)).split(",subtype:").enumerate() {
+        let pattern: Vec<char> = "{\"subtype\":}".chars().collect();
+        for (i,dim) in s.trim_matches(|p| pattern.contains(&p)).split(",\"branch\":").enumerate() {
             match i {
-                0 => branch_str = dim,
-                1 => subtype = dim.trim_matches(|p| p == '\"'),
+                0 => subtype = dim.trim_matches(|p| p == '\"'),
+                1 => branch_str = dim,
                 _ => return Err(Box::new(CalcifyError::ParseError)),
             }
         }
@@ -99,59 +104,62 @@ impl Deserializable for Branch {
                     unparsed = rest;
                     if let Ok((_,rest)) = read_str_from_slice(unparsed) {
                         unparsed = rest;
-                        let branch: Box<dyn Serializable>  = match subtype {
+                        let (branch,rest): (Box<dyn Serializable>,&[u8])  = match subtype {
                             "f64" => {
-                                if let Ok((ot,_rest)) = Collection::<f64>::from_msg(unparsed) {
-                                    Box::new(ot)
+                                if let Ok((ot,rest)) = Collection::<f64>::from_msg(unparsed) {
+                                    (Box::new(ot),rest)
                                 } else {
                                     return Err(Box::new(CalcifyError::ParseError));
                                 }
                             },
                             "ThreeVec" => {
-                                if let Ok((ot,_rest)) = Collection::<ThreeVec>::from_msg(unparsed) {
-                                    Box::new(ot)
+                                if let Ok((ot,rest)) = Collection::<ThreeVec>::from_msg(unparsed) {
+                                    (Box::new(ot),rest)
                                 } else {
                                     return Err(Box::new(CalcifyError::ParseError));
                                 }
                             },
                             "ThreeMat" => {
-                                if let Ok((ot,_rest)) = Collection::<ThreeMat>::from_msg(unparsed) {
-                                    Box::new(ot)
+                                if let Ok((ot,rest)) = Collection::<ThreeMat>::from_msg(unparsed) {
+                                    (Box::new(ot),rest)
                                 } else {
                                     return Err(Box::new(CalcifyError::ParseError));
                                 }
                             },
                             "FourVec" => {
-                                if let Ok((ot,_rest)) = Collection::<FourVec>::from_msg(unparsed) {
-                                    Box::new(ot)
+                                if let Ok((ot,rest)) = Collection::<FourVec>::from_msg(unparsed) {
+                                    (Box::new(ot),rest)
                                 } else {
                                     return Err(Box::new(CalcifyError::ParseError));
                                 }
                             },
                             "FourMat" => {
-                                if let Ok((ot,_rest)) = Collection::<FourMat>::from_msg(unparsed) {
-                                    Box::new(ot)
+                                if let Ok((ot,rest)) = Collection::<FourMat>::from_msg(unparsed) {
+                                    (Box::new(ot),rest)
                                 } else {
                                     return Err(Box::new(CalcifyError::ParseError));
                                 }
                             },
                             "Bin" => {
-                                if let Ok((ot,_rest)) = Collection::<Bin>::from_msg(&mut bytes) {
-                                    Box::new(ot)
+                                if let Ok((ot,rest)) = Collection::<Bin>::from_msg(&mut bytes) {
+                                    (Box::new(ot),rest)
                                 } else {
                                     return Err(Box::new(CalcifyError::ParseError));
                                 }
                             },
                             "Point" => {
-                                if let Ok((ot,_rest)) = Collection::<Point>::from_msg(&mut bytes) {
-                                    Box::new(ot)
+                                if let Ok((ot,rest)) = Collection::<Point>::from_msg(&mut bytes) {
+                                    (Box::new(ot),rest)
                                 } else {
                                     return Err(Box::new(CalcifyError::ParseError));
                                 }
                             },
+                            "Object" => {
+                                return Err(Box::new(CalcifyError::ObjectBranchDeserializeError));
+                            },
                             _ => return Err(Box::new(CalcifyError::ParseError)),
                         };
-                        return Ok((Branch::new(subtype.to_string(),branch),bytes));
+                        return Ok((Branch::new(subtype.to_string(),branch),rest));
                     }
                 }
             }

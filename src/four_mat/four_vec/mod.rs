@@ -46,13 +46,13 @@ pub enum Sinv {
 /// use calcify::errors::CalcifyError;
 /// let v = 149_896_229.0;
 /// assert_eq!(beta(v).unwrap(),0.5);
-/// assert!(beta(10e10).is_err(),CalcifyError::LightSpeed);
+/// assert!(beta(10e10).is_err(),CalcifyError::LightSpeedError);
 /// ```
 pub fn beta<'a>(v: f64) -> Result<f64,CalcifyError> {
     let b1 = v/consts::C_LIGHT;
     match b1 <= 1.0 {
         true => Ok(b1),
-        false => Err(CalcifyError::LightSpeed),
+        false => Err(CalcifyError::LightSpeedError),
     }
 
 }
