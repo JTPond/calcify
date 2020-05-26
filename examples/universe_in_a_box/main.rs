@@ -1,10 +1,10 @@
+use std::error;
+
 #[macro_use]
 extern crate lazy_static;
 
 extern crate calcify;
 extern crate chrono;
-
-use std::error;
 
 use chrono::prelude::*;
 
@@ -67,7 +67,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     let mid2_state: Collection<Particle> = Collection::from(universe.state.clone());
     let mid2_hist: Collection<Bin> = mid2_state.map(|x| {x.r().r()}).hist(500);
 
-    ttree.add_branch("mid2_state", mid2_state, "Object")?;
+    ftree.add_feed("mid2_state", mid2_state)?;
     ttree.add_branch("mid2_hist", mid2_hist, "Bin")?;
 
     universe.run(*RUN_T);
