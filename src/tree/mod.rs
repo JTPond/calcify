@@ -278,7 +278,7 @@ mod tests {
         ttree.add_field("Desc", "This is a Tree for testing.")?;
         ttree.add_branch("fcol", fcol, "f64")?;
         ttree.add_branch("col_3v", col_3v, "ThreeVec")?;
-        ttree.write_msg("test_tree.msg")?;
+        ttree.write_msg("./scratch/test_tree.msg")?;
         Ok(())
     }
 
@@ -288,7 +288,7 @@ mod tests {
         let mut col_3v: Collection<ThreeVec> = Collection::empty();
         for _i in 0..9 {col_3v.push(ThreeVec::new(1.0,2.0,3.0));}
 
-        let mut ftree = Tree::read_msg("test_tree.msg")?;
+        let mut ftree = Tree::read_msg("./scratch/test_tree.msg")?;
         let ftree_branch1: Collection<f64> = ftree.read_branch("fcol")?;
         assert_eq!(ftree_branch1,fcol);
         let ftree_branch2: Collection<ThreeVec> = ftree.read_branch("col_3v")?;

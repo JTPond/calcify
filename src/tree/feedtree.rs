@@ -199,7 +199,7 @@ mod tests {
         let mut ttree = FeedTree::new("Test_Tree","ThreeVec");
         ttree.add_field("Desc", "This is a Tree for testing.")?;
         ttree.add_feed("fcol", col_3v)?;
-        ttree.write_msg("test_ftree.msg")?;
+        ttree.write_msg("./scratch/test_ftree.msg")?;
         Ok(())
     }
 
@@ -211,7 +211,7 @@ mod tests {
         ttree.add_field("Desc", "This is a Tree for testing.")?;
         ttree.add_feed("fcol", col_3v)?;
 
-        let ftree: FeedTree<ThreeVec> = FeedTree::read_msg("test_ftree.msg")?;
+        let ftree: FeedTree<ThreeVec> = FeedTree::read_msg("./scratch/test_ftree.msg")?;
         assert_eq!(ftree,ttree);
         Ok(())
     }

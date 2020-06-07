@@ -362,7 +362,7 @@ mod tests {
 
     #[test]
     fn test_hist() {
-        let f = File::create("test_hist.json").unwrap();
+        let f = File::create("./scratch/test_hist.json").unwrap();
         let mut wr = BufWriter::new(f);
         let mut col_3v = Collection::empty();
             for _i in 0..99999 {
@@ -374,7 +374,7 @@ mod tests {
 
     #[test]
     fn test_plot() {
-        let f = File::create("test_plot.json").unwrap();
+        let f = File::create("./scratch/test_plot.json").unwrap();
         let mut wr = BufWriter::new(f);
         let test_plot: Collection<Point> = Collection::plot(&vec![0.0,1.0,2.0],&vec![3.0,4.0,5.0]);
         wr.write(test_plot.to_json().as_bytes()).unwrap();
@@ -382,7 +382,7 @@ mod tests {
 
     #[test]
     fn test_json() {
-        let f = File::create("test_out.json").unwrap();
+        let f = File::create("./scratch/test_out.json").unwrap();
         let mut wr = BufWriter::new(f);
         let mut col_3v = Collection::empty();
         for _i in 0..9999 {
