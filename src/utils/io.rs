@@ -8,7 +8,7 @@ use std::fs;
 use super::serializable::{Serializable, Deserializable};
 use super::errors::CalcifyError;
 
-
+/// Trait for saving a *Tree to disk.
 pub trait ToFile {
     /// Write Self as json to file.
     fn write_json(&self, filename: &str) -> Result<(), Box<dyn error::Error>>
@@ -29,6 +29,7 @@ pub trait ToFile {
     }
 }
 
+/// Trait for loading a *Tree from disk.
 pub trait FromFile {
     /// Read json file to Self.
     fn read_json(filename: &str) -> Result<Self, Box<dyn error::Error>>

@@ -1,10 +1,11 @@
 # Release Notes
 
-### 0.8:
-* Reorganize files around branch.
+### 0.8 2020-06-06:
+* **File IO for Trees and FeedTrees**
+* **Remove support for jsonc.**
 * Update extract.
 * Support "Object" Branches.
-* **Remove support for jsonc.**
+* Reorganize files around branch.
 
 ### 0.7: 2020-04-18
 * Added CalcifyError. Dropped lifetime of Tree keys to 'a from 'static. Upgraded Point to be more like a TwoVec.

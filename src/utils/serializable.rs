@@ -24,7 +24,7 @@ pub trait Deserializable {
     /// Return Self from string
     fn from_json(string: &str) -> Result<Self, Box<dyn error::Error>>
         where Self: Sized;
-    /// Return a tuple of Self and a byte array of remaining unparsed bytes from a byte array
+    /// Return a tuple of Self and a &[u8] of remaining unparsed bytes from a byte array
     fn from_msg(bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>>
         where Self: Sized;
 }

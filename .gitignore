@@ -5,3 +5,4 @@ Cargo.lock
 test_*.json
 universe_*.json
 *.msg
+scratch
