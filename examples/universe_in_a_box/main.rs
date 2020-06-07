@@ -36,7 +36,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     let mut universe = Universe::cloud(*UNIVERSE_RANGE,*UNIVERSE_NUM,*UNIVERSE_DT);
 
     let init_state: Collection<Particle> = Collection::from(universe.state.clone());
-    let init_hist: Collection<Bin> = init_state.map(|x| {x.r().r()}).hist(500);
+    let init_hist: Collection<Bin> = init_state.map(|x| {x.r().r()}).hist(50);
     let init_spread: Collection<Point> = Collection::plot(&init_state.map(|x| {*x.r().x0()}).vec,&init_state.map(|x| {*x.r().x1()}).vec).cut(|p| p.r() <= 1.0);
 
     ftree.add_field("Desc","A FeedTree of states for the simple universe in a box multiparticle simulation.")?;
@@ -57,7 +57,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     universe.run(*RUN_T);
 
     let mid1_state: Collection<Particle> = Collection::from(universe.state.clone());
-    let mid1_hist: Collection<Bin> = mid1_state.map(|x| {x.r().r()}).hist(500);
+    let mid1_hist: Collection<Bin> = mid1_state.map(|x| {x.r().r()}).hist(50);
 
     ftree.add_feed("mid1_state", mid1_state)?;
     ttree.add_branch("mid1_hist", mid1_hist, "Bin")?;
@@ -65,7 +65,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     universe.run(*RUN_T);
 
     let mid2_state: Collection<Particle> = Collection::from(universe.state.clone());
-    let mid2_hist: Collection<Bin> = mid2_state.map(|x| {x.r().r()}).hist(500);
+    let mid2_hist: Collection<Bin> = mid2_state.map(|x| {x.r().r()}).hist(50);
 
     ftree.add_feed("mid2_state", mid2_state)?;
     ttree.add_branch("mid2_hist", mid2_hist, "Bin")?;
@@ -73,14 +73,14 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     universe.run(*RUN_T);
 
     let fin_state: Collection<Particle> = Collection::from(universe.state.clone());
-    let fin_hist: Collection<Bin> = fin_state.map(|x| {x.r().r()}).hist(500);
+    let fin_hist: Collection<Bin> = fin_state.map(|x| {x.r().r()}).hist(50);
     let fin_spread: Collection<Point> = Collection::plot(&fin_state.map(|x| {*x.r().x0()}).vec,&fin_state.map(|x| {*x.r().x1()}).vec).cut(|p| p.r() <= 1.0);
 
     ftree.add_feed("fin_state", fin_state)?;
     ttree.add_branch("fin_hist", fin_hist, "Bin")?;
     ttree.add_branch("fin_spread", fin_spread, "Point")?;
 
-    ftree.write_msg("universe_states.msg")?;
-    ttree.write_msg("universe_data.msg")?;
+    ftree.write_msg("./scratch/universe_states.msg")?;
+    ttree.write_msg("./scratch/universe_data.msg")?;
     Ok(())
 }
