@@ -1,5 +1,8 @@
 # Release Notes
 
+### 0.8.1 2020-06-13:
+* Implement From<Vec<T: Serializable>> and From<&[T: Serializable + Clone]> for Collection
+
 ### 0.8 2020-06-06:
 * **File IO for Trees and FeedTrees**
 * **Remove support for jsonc.**

@@ -1,5 +1,6 @@
 use std::iter::FromIterator;
 use std::error;
+use std::convert::From;
 
 mod point;
 mod bin;
@@ -28,27 +29,6 @@ pub struct Collection<T: Serializable> {
 }
 
 impl<T: Serializable> Collection<T> {
-    /// Returns new Collection from a Vec<T: Serializable>
-    ///
-    /// # Arguments
-    ///
-    /// * `vec` - Vec<calcify::FourVec>
-    ///
-    /// # Example
-    /// ```
-    /// use calcify::FourVec;
-    /// use calcify::Collection;
-    ///
-    /// let col4V = Collection::from(
-    ///     vec![FourVec::new(10.0,1.0,1.0,1.0)]
-    /// );
-    /// ```
-    pub fn from(vec: Vec<T>) -> Collection<T> {
-        Collection {
-            vec,
-        }
-    }
-
     /// Returns new Collection from a Vec<T: Serializable>
     ///
     /// # Example
@@ -129,8 +109,9 @@ impl<T: Serializable> Collection<T> {
     /// assert_eq!(col4V.map(FourVec::s), mass_col4V);
     /// ```
     pub fn map<F,Z: Serializable>(&self, close: F) -> Collection<Z> where
-        F: FnMut(&T) -> Z{
-            Collection::from(self.vec.iter().map(close).collect())
+        F: FnMut(&T) -> Z {
+            let vbuff: Vec<Z> = self.vec.iter().map(close).collect();
+            Collection::from(vbuff)
     }
 
     /// Cuts/Filters a function and returns a new Collection<T>
@@ -162,6 +143,54 @@ impl<T: Serializable> Collection<T> {
              Collection::from(new_vec)
     }
 
+}
+
+impl<T: Serializable + Clone> From<&[T]> for Collection<T> {
+    /// Returns new Collection from a &[<T: Serializable>]
+    ///
+    /// # Arguments
+    ///
+    /// * `vec` - &[T: Serializable]
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::FourVec;
+    /// use calcify::Collection;
+    ///
+    /// let a4v = [FourVec::new(10.0,1.0,1.0,1.0)];
+    /// let col4V = Collection::from(
+    ///     &a4v[..]
+    /// );
+    /// ```
+    fn from(vec: &[T]) -> Self {
+        let ivec: Vec<T> = vec.to_vec();
+        Collection {
+            vec: ivec,
+        }
+    }
+}
+
+impl<T: Serializable> From<Vec<T>> for Collection<T> {
+    /// Returns new Collection from a &[<T: Serializable>]
+    ///
+    /// # Arguments
+    ///
+    /// * `vec` - Vec<T: Serializable>
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::FourVec;
+    /// use calcify::Collection;
+    ///
+    /// let col4V = Collection::from(
+    ///     vec![FourVec::new(10.0,1.0,1.0,1.0)]
+    /// );
+    /// ```
+    fn from(vec: Vec<T>) -> Self {
+        Collection {
+            vec,
+        }
+    }
 }
 
 impl<T: Serializable> Serializable for Collection<T> {

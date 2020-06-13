@@ -43,7 +43,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                                           &init_state.map(|x| {*x.r().x1()}).vec)
                                                           .cut(|p| p.r() <= 1.0);
 
-    ftree.add_feed("init_state", init_state, "Object")?;
+    ftree.add_feed("init_state", init_state)?;
     ttree.add_branch("init_hist", init_hist, "Bin")?;
     ttree.add_branch("init_spread", init_spread, "Point")?;
 

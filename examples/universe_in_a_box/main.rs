@@ -28,7 +28,8 @@ fn main() -> Result<(),Box<dyn error::Error>> {
         static ref RUN_T: usize = 200;
         static ref NOW: DateTime<Local> = Local::now();
         static ref NOWS: String = NOW.format("%m/%d/%Y %H:%M").to_string();
-        static ref DETAILS: String = format!("Universe Range: {}, Number of Particles: {}, Delta T: {}, Time steps: {}, Total Time: {}", *UNIVERSE_RANGE, *UNIVERSE_NUM, *UNIVERSE_DT, *RUN_T, (*RUN_T as f64)*(*UNIVERSE_DT));
+        static ref DETAILS: String = format!("Universe Range: {}, Number of Particles: {}, Delta T: {}, Time steps: {}, Total Time: {}",
+                                                *UNIVERSE_RANGE, *UNIVERSE_NUM, *UNIVERSE_DT, *RUN_T, (*RUN_T as f64)*(*UNIVERSE_DT));
     }
     let mut ftree = FeedTree::<Particle>::new("states","Object");
     let mut ttree = Tree::new("data");
@@ -37,7 +38,9 @@ fn main() -> Result<(),Box<dyn error::Error>> {
 
     let init_state: Collection<Particle> = Collection::from(universe.state.clone());
     let init_hist: Collection<Bin> = init_state.map(|x| {x.r().r()}).hist(50);
-    let init_spread: Collection<Point> = Collection::plot(&init_state.map(|x| {*x.r().x0()}).vec,&init_state.map(|x| {*x.r().x1()}).vec).cut(|p| p.r() <= 1.0);
+    let init_spread: Collection<Point> = Collection::plot(&init_state.map(|x| {*x.r().x0()}).vec,
+                                                          &init_state.map(|x| {*x.r().x1()}).vec)
+                                                            .cut(|p| p.r() <= 1.0);
 
     ftree.add_field("Desc","A FeedTree of states for the simple universe in a box multiparticle simulation.")?;
     ftree.add_field("Details", &*DETAILS)?;
@@ -74,7 +77,9 @@ fn main() -> Result<(),Box<dyn error::Error>> {
 
     let fin_state: Collection<Particle> = Collection::from(universe.state.clone());
     let fin_hist: Collection<Bin> = fin_state.map(|x| {x.r().r()}).hist(50);
-    let fin_spread: Collection<Point> = Collection::plot(&fin_state.map(|x| {*x.r().x0()}).vec,&fin_state.map(|x| {*x.r().x1()}).vec).cut(|p| p.r() <= 1.0);
+    let fin_spread: Collection<Point> = Collection::plot(&fin_state.map(|x| {*x.r().x0()}).vec,
+                                                         &fin_state.map(|x| {*x.r().x1()}).vec)
+                                                            .cut(|p| p.r() <= 1.0);
 
     ftree.add_feed("fin_state", fin_state)?;
     ttree.add_branch("fin_hist", fin_hist, "Bin")?;
