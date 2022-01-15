@@ -6,6 +6,7 @@ mod branch;
 pub use branch::Collection;
 pub use branch::Bin;
 pub use branch::Point;
+pub use branch::PointBin;
 pub use branch::Branch;
 
 mod feedtree;
@@ -81,7 +82,7 @@ impl Tree {
     ///
     /// * `t` is invalid
     pub fn add_branch<T: 'static + Serializable>(&mut self, key: &str, b: Collection<T>, t: &str) -> Result<(),CalcifyError> {
-        let types = ["f64","String","ThreeVec","ThreeMat","FourVec","FourMat","Bin","Point","Object"];
+        let types = ["f64","String","ThreeVec","ThreeMat","FourVec","FourMat","Bin","Point","PointBin","Object"];
         if types.contains(&t) {
             let br = Branch::new(String::from(t),Box::new(b));
             if let Some(_) = self.branches.insert(String::from(key),br) {
@@ -89,7 +90,7 @@ impl Tree {
             }
             Ok(())
         } else {
-            panic!("Subtype must be one of \"f64\", \"String\", \"ThreeVec\", \"ThreeMat\", \"FourVec\", \"FourMat\", \"Bin\", \"Point\", \"Object\" not {}",t);
+            panic!("Subtype must be one of \"f64\", \"String\", \"ThreeVec\", \"ThreeMat\", \"FourVec\", \"FourMat\", \"Bin\", \"Point\", \"PointBin\", \"Object\" not {}",t);
         }
     }
 

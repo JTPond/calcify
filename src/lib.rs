@@ -25,6 +25,7 @@ pub use tree::FeedTree;
 pub use tree::Collection;
 pub use tree::Bin;
 pub use tree::Point;
+pub use tree::PointBin;
 
 pub use four_mat::Sinv;
 pub use four_mat::beta;

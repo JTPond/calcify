@@ -5,6 +5,7 @@ mod collection;
 pub use collection::Collection;
 pub use collection::Bin;
 pub use collection::Point;
+pub use collection::PointBin;
 use crate::four_mat::FourVec;
 use crate::four_mat::FourMat;
 
@@ -89,6 +90,7 @@ impl Deserializable for Branch {
             "FourMat" => Box::new(Collection::<FourMat>::from_json(&branch_str)?),
             "Bin" => Box::new(Collection::<Bin>::from_json(&branch_str)?),
             "Point" => Box::new(Collection::<Point>::from_json(&branch_str)?),
+            "PointBin" => Box::new(Collection::<PointBin>::from_json(&branch_str)?),
             _ => return Err(Box::new(CalcifyError::ParseError)),
         };
         Ok(Branch::new(subtype.to_string(),branch))
@@ -149,6 +151,13 @@ impl Deserializable for Branch {
                             },
                             "Point" => {
                                 if let Ok((ot,rest)) = Collection::<Point>::from_msg(&mut bytes) {
+                                    (Box::new(ot),rest)
+                                } else {
+                                    return Err(Box::new(CalcifyError::ParseError));
+                                }
+                            },
+                            "PointBin" => {
+                                if let Ok((ot,rest)) = Collection::<PointBin>::from_msg(&mut bytes) {
                                     (Box::new(ot),rest)
                                 } else {
                                     return Err(Box::new(CalcifyError::ParseError));
