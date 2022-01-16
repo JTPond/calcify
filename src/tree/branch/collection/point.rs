@@ -36,8 +36,8 @@ impl Point {
     ///
     /// # Arguments
     ///
-    /// * `x` - f64 Independent Variable
-    /// * `y` - f64 Dependent Variable
+    /// * `x` - prim@f64 Independent Variable
+    /// * `y` - prim@f64 Dependent Variable
     ///
     pub fn new(x: f64, y: f64) -> Point {
         Point {
@@ -50,7 +50,7 @@ impl Point {
     ///
     /// # Arguments
     ///
-    /// * `slice` - &[f64]
+    /// * `slice` - &[prim@f64]
     ///
     /// # Example
     /// ```
@@ -73,7 +73,7 @@ impl Point {
     ///
     /// # Arguments
     ///
-    /// * `max` - f64: The absolute maximum value of each individule componant of the constituent Point
+    /// * `max` - prim@f64: The absolute maximum value of each individule componant of the constituent Point
     ///
     /// # Example
     /// ```

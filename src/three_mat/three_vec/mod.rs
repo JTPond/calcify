@@ -57,7 +57,7 @@ impl ThreeVec {
     ///
     /// # Arguments
     ///
-    /// * `slice` - &[f64]
+    /// * `slice` - &[prim@f64]
     ///
     /// # Example
     /// ```

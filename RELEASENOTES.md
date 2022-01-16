@@ -1,5 +1,8 @@
 # Release Notes
 
+### 0.8.2 2022-01-16:
+* Add PointBin 2D hist type
+
 ### 0.8.1 2020-06-13:
 * Implement From<Vec<T: Serializable>> and From<&[T: Serializable + Clone]> for Collection
 

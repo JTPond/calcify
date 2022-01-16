@@ -496,8 +496,10 @@ impl Neg for FourMat {
 ///
 /// Each componant of **v** must be less than calcify::C_LIGHT.
 /// Uses a FourMat Lorentz Transformation tensor.
+/// ```text
 /// If **v** = [0,0,0], then the boost tensor will be an identity by definition.
-///
+/// ```
+/// 
 /// # Arguments
 ///
 /// * `initial` - calcify::FourVec

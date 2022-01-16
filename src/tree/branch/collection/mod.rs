@@ -153,7 +153,7 @@ impl<T: Serializable> Collection<T> {
 }
 
 impl<T: Serializable + Clone> From<&[T]> for Collection<T> {
-    /// Returns new Collection from a &[<T: Serializable>]
+    /// Returns new Collection from a &[T: Serializable]
     ///
     /// # Arguments
     ///
@@ -178,7 +178,7 @@ impl<T: Serializable + Clone> From<&[T]> for Collection<T> {
 }
 
 impl<T: Serializable> From<Vec<T>> for Collection<T> {
-    /// Returns new Collection from a &[<T: Serializable>]
+    /// Returns new Collection from a &[T: Serializable]
     ///
     /// # Arguments
     ///
@@ -335,8 +335,8 @@ impl Collection<Point> {
     ///
     /// # Arguments
     ///
-    /// * `ind` - Independent variable: &[64]
-    /// * `dep` - Dependent variable: &[64]
+    /// * `ind` - Independent variable: &[prim@f64]
+    /// * `dep` - Dependent variable: &[prim@f64]
     ///
     /// # Example
     /// ```
@@ -364,7 +364,6 @@ impl Collection<Point> {
     ///
     /// * If either num_bins is less than 2
     ///
-    /// ```
     pub fn hist(&self, num_bins_x: u64, num_bins_y: u64) -> Collection<PointBin> {
         if num_bins_x < 2 || num_bins_y < 2 {panic!("num_bins must be 2 or greater.");}
         let mut min_x = self.vec[0].x;

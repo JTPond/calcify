@@ -65,7 +65,7 @@ pub fn beta<'a>(v: f64) -> Result<f64,CalcifyError> {
 ///
 /// # Formula
 ///
-/// ```
+/// ```text
 /// // 1/sqrt(1 - beta^2)
 /// ```
 pub fn gamma(beta: f64) -> f64 {
@@ -109,7 +109,7 @@ impl FourVec {
     ///
     /// # Arguments
     ///
-    /// * `slice` - &[f64]
+    /// * `slice` - &[prim@f64]
     ///
     /// # Example
     /// ```

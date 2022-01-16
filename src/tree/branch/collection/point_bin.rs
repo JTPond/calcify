@@ -12,7 +12,7 @@ use crate::utils;
 use utils::{Serializable, Deserializable};
 use utils::errors::CalcifyError;
 
-/// A histogram is a Collection of PointBins
+/// A 2D histogram is a Collection of PointBins
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct PointBin {
     pub in_edge_x: f64,
@@ -32,7 +32,8 @@ impl PointBin {
     /// * `in_edge_y` - f64 Inclusive Edge along the Y axis
     /// * `ex_edge_y` - f64 Exclusive Edge along the Y axis
     /// * `count` - u64 PointBin value
-    ///
+    /// 
+    /// Expectected to be created by calling [hist](./struct.Collection.html#impl-1) on a Collection<Point>
     pub fn new(in_edge_x: f64, ex_edge_x: f64, in_edge_y: f64, ex_edge_y: f64, count: u64) -> PointBin {
         PointBin {
             in_edge_x,
