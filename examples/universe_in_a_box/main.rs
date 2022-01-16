@@ -24,7 +24,7 @@ use universe_in_a_box::Universe;
 fn main() -> Result<(),Box<dyn error::Error>> {
     lazy_static!{
         static ref UNIVERSE_RANGE: f64 = 1.0;
-        static ref UNIVERSE_NUM: usize = 5000;
+        static ref UNIVERSE_NUM: usize = 500;
         static ref UNIVERSE_DT: f64 = 0.01;
         static ref RUN_T: usize = 200;
         static ref NOW: DateTime<Local> = Local::now();
@@ -44,6 +44,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                                             .cut(|p| p.r() <= 1.0);
     let init_heat: Collection<PointBin> = Collection::plot(&init_state.map(|x| {*x.r().x0()}).vec,
                                                         &init_state.map(|x| {*x.r().x1()}).vec)
+                                                            .cut(|p| p.r() <= 1.0)
                                                             .hist(50,50);
 
     ftree.add_field("Desc","A FeedTree of states for the simple universe in a box multiparticle simulation.")?;
@@ -87,6 +88,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                                             .cut(|p| p.r() <= 1.0);
     let fin_heat: Collection<PointBin> = Collection::plot(&fin_state.map(|x| {*x.r().x0()}).vec,
                                                          &fin_state.map(|x| {*x.r().x1()}).vec)
+                                                            .cut(|p| p.r() <= 1.0)
                                                             .hist(50,50);
 
     ftree.add_feed("fin_state", fin_state)?;
