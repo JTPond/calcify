@@ -1,4 +1,3 @@
-use std::f64;
 use std::ops::Mul;
 use std::ops::Neg;
 
@@ -33,7 +32,7 @@ impl<'a> ThreeVecField<'a> {
     /// assert_eq!(g.at(test_vec),ThreeVec::new(4.0,4.0,4.0));
     /// assert_eq!(g2.loc(2.0,2.0,2.0),ThreeVec::new(8.0,8.0,8.0));
     /// ```
-    pub fn new(func: &'a dyn Fn(&ThreeVec) -> ThreeVec) -> ThreeVecField {
+    pub fn new(func: &'a dyn Fn(&ThreeVec) -> ThreeVec) -> ThreeVecField<'a> {
         ThreeVecField {
             func,
             multi: 1.0,

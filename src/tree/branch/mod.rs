@@ -1,5 +1,4 @@
 use std::error;
-use std::f64;
 
 mod collection;
 pub use collection::Collection;
@@ -16,7 +15,6 @@ use crate::utils;
 use utils::{Serializable, Deserializable};
 use utils::errors::CalcifyError;
 
-extern crate rmp;
 use rmp::encode::*;
 use rmp::decode::*;
 
@@ -47,7 +45,7 @@ impl Branch{
         if self.buffer.is_none() {
             self.buffer = Some(self.branch.to_msg()?);
         }
-        if let Ok((out, _)) = Collection::<T>::from_msg(&mut self.buffer.as_ref().unwrap()){
+        if let Ok((out, _)) = Collection::<T>::from_msg(self.buffer.as_ref().unwrap()){
             return Ok(out);
         }
         Err(Box::new(CalcifyError::ParseError))
@@ -83,14 +81,14 @@ impl Deserializable for Branch {
             }
         }
         let branch: Box<dyn Serializable> = match subtype {
-            "f64" => Box::new(Collection::<f64>::from_json(&branch_str)?),
-            "ThreeVec" => Box::new(Collection::<ThreeVec>::from_json(&branch_str)?),
-            "ThreeMat" => Box::new(Collection::<ThreeMat>::from_json(&branch_str)?),
-            "FourVec" => Box::new(Collection::<FourVec>::from_json(&branch_str)?),
-            "FourMat" => Box::new(Collection::<FourMat>::from_json(&branch_str)?),
-            "Bin" => Box::new(Collection::<Bin>::from_json(&branch_str)?),
-            "Point" => Box::new(Collection::<Point>::from_json(&branch_str)?),
-            "PointBin" => Box::new(Collection::<PointBin>::from_json(&branch_str)?),
+            "f64" => Box::new(Collection::<f64>::from_json(branch_str)?),
+            "ThreeVec" => Box::new(Collection::<ThreeVec>::from_json(branch_str)?),
+            "ThreeMat" => Box::new(Collection::<ThreeMat>::from_json(branch_str)?),
+            "FourVec" => Box::new(Collection::<FourVec>::from_json(branch_str)?),
+            "FourMat" => Box::new(Collection::<FourMat>::from_json(branch_str)?),
+            "Bin" => Box::new(Collection::<Bin>::from_json(branch_str)?),
+            "Point" => Box::new(Collection::<Point>::from_json(branch_str)?),
+            "PointBin" => Box::new(Collection::<PointBin>::from_json(branch_str)?),
             _ => return Err(Box::new(CalcifyError::ParseError)),
         };
         Ok(Branch::new(subtype.to_string(),branch))
@@ -99,7 +97,7 @@ impl Deserializable for Branch {
     fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
 
         if let Ok(_len) = read_map_len(&mut bytes) {
-            let mut unparsed = &bytes[..];
+            let mut unparsed = bytes;
             if let Ok((_,rest)) = read_str_from_slice(unparsed) {
                 unparsed = rest;
                 if let Ok((subtype,rest)) = read_str_from_slice(unparsed) {
@@ -143,21 +141,21 @@ impl Deserializable for Branch {
                                 }
                             },
                             "Bin" => {
-                                if let Ok((ot,rest)) = Collection::<Bin>::from_msg(&mut bytes) {
+                                if let Ok((ot,rest)) = Collection::<Bin>::from_msg(unparsed) {
                                     (Box::new(ot),rest)
                                 } else {
                                     return Err(Box::new(CalcifyError::ParseError));
                                 }
                             },
                             "Point" => {
-                                if let Ok((ot,rest)) = Collection::<Point>::from_msg(&mut bytes) {
+                                if let Ok((ot,rest)) = Collection::<Point>::from_msg(unparsed) {
                                     (Box::new(ot),rest)
                                 } else {
                                     return Err(Box::new(CalcifyError::ParseError));
                                 }
                             },
                             "PointBin" => {
-                                if let Ok((ot,rest)) = Collection::<PointBin>::from_msg(&mut bytes) {
+                                if let Ok((ot,rest)) = Collection::<PointBin>::from_msg(unparsed) {
                                     (Box::new(ot),rest)
                                 } else {
                                     return Err(Box::new(CalcifyError::ParseError));

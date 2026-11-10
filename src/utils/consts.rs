@@ -1,5 +1,3 @@
-use std::f64;
-
 /// Re-export Rust's PI
 pub const PI: f64 = std::f64::consts::PI;
 

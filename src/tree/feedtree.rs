@@ -7,7 +7,6 @@ use utils::{Serializable, Deserializable};
 use utils::errors::CalcifyError;
 use utils::io::{ToFile,FromFile};
 
-extern crate rmp;
 use rmp::encode::*;
 use rmp::decode::*;
 
@@ -52,7 +51,7 @@ impl<T: Serializable> FeedTree<T> {
     }
 
     pub fn add_field(&mut self, key: &str, f: &str) -> Result<(),CalcifyError> {
-        if let Some(_) = self.metadata.insert(String::from(key),String::from(f)) {
+        if self.metadata.insert(String::from(key),String::from(f)).is_some() {
             return Err(CalcifyError::KeyError);
         }
         Ok(())
@@ -65,7 +64,7 @@ impl<T: Serializable> FeedTree<T> {
     /// * `key` - Hash key, String
     /// * `f` - Collection<T: Serializable>
     pub fn add_feed(&mut self, key: &str, f: Collection<T>) -> Result<(),CalcifyError> {
-        if let Some(_) = self.datafeeds.insert(String::from(key),f) {
+        if self.datafeeds.insert(String::from(key),f).is_some() {
             return Err(CalcifyError::KeyError);
         }
         Ok(())
@@ -150,12 +149,21 @@ impl<T: Serializable + Deserializable> Deserializable for FeedTree<T> {
         let mut datafeeds: HashMap<String,Collection<T>> = HashMap::new();
         if let Ok(len) = read_map_len(&mut bytes) {
             for _ in 0..len {
-                let mut unparsed: &[u8] = &bytes[..];
+                let mut unparsed: &[u8] = bytes;
                 if let Ok((key,v_rest)) = read_str_from_slice(unparsed) {
                     match key {
                         "datafeeds" => {
-                            bytes = v_rest;
-                            break;
+                            let mut cur = v_rest;
+                            if let Ok(flen) = read_map_len(&mut cur) {
+                                for _ in 0..flen {
+                                    if let Ok((fkey,fv_rest)) = read_str_from_slice(cur)
+                                        && let Ok((value,rest)) = Collection::<T>::from_msg(fv_rest) {
+                                            cur = rest;
+                                            datafeeds.insert(String::from(fkey),value);
+                                        }
+                                }
+                            }
+                            unparsed = cur;
                         },
                         _ => {
                             if let Ok((value,rest)) = read_str_from_slice(v_rest) {
@@ -167,17 +175,6 @@ impl<T: Serializable + Deserializable> Deserializable for FeedTree<T> {
 
                 }
                 bytes = unparsed;
-            }
-            if let Ok(flen) = read_map_len(&mut bytes) {
-                for _ in 0..flen {
-                    let unparsed: &[u8] = &bytes[..];
-                    if let Ok((key,v_rest)) = read_str_from_slice(unparsed) {
-                        if let Ok((value,rest)) = Collection::<T>::from_msg(v_rest) {
-                            bytes = rest;
-                            datafeeds.insert(String::from(key),value);
-                        }
-                    }
-                }
             }
         }
         Ok((FeedTree{metadata, datafeeds},bytes))
@@ -210,8 +207,9 @@ mod tests {
         let mut ttree = FeedTree::new("Test_Tree","ThreeVec");
         ttree.add_field("Desc", "This is a Tree for testing.")?;
         ttree.add_feed("fcol", col_3v)?;
+        ttree.write_msg("./scratch/test_ftree_read.msg")?;
 
-        let ftree: FeedTree<ThreeVec> = FeedTree::read_msg("./scratch/test_ftree.msg")?;
+        let ftree: FeedTree<ThreeVec> = FeedTree::read_msg("./scratch/test_ftree_read.msg")?;
         assert_eq!(ftree,ttree);
         Ok(())
     }

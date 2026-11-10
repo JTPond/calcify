@@ -1,9 +1,6 @@
 use std::ops::AddAssign;
 use std::error;
-use std::u64;
-use std::f64;
 
-extern crate rmp;
 use rmp::encode::*;
 use rmp::decode::*;
 

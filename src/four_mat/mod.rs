@@ -1,5 +1,3 @@
-use std::f64::NAN;
-
 use std::ops::Add;
 use std::ops::AddAssign;
 use std::ops::Sub;
@@ -24,7 +22,6 @@ use three_mat::ThreeVec;
 use utils::{Serializable, Deserializable};
 use utils::errors::CalcifyError;
 
-extern crate rmp;
 use rmp::encode::*;
 use rmp::decode::*;
 
@@ -311,10 +308,10 @@ impl Serializable for FourMat {
 impl Deserializable for FourMat {
 
     fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
-        let mut n0: FourVec = FourVec::new(NAN,NAN,NAN,NAN);
-        let mut n1: FourVec = FourVec::new(NAN,NAN,NAN,NAN);
-        let mut n2: FourVec = FourVec::new(NAN,NAN,NAN,NAN);
-        let mut n3: FourVec = FourVec::new(NAN,NAN,NAN,NAN);
+        let mut n0: FourVec = FourVec::new(f64::NAN,f64::NAN,f64::NAN,f64::NAN);
+        let mut n1: FourVec = FourVec::new(f64::NAN,f64::NAN,f64::NAN,f64::NAN);
+        let mut n2: FourVec = FourVec::new(f64::NAN,f64::NAN,f64::NAN,f64::NAN);
+        let mut n3: FourVec = FourVec::new(f64::NAN,f64::NAN,f64::NAN,f64::NAN);
         for dim in s.replace("}}","|}").replace("},","}|").replace(":{",":!{").trim_matches(|p| p == '{' || p == '}' ).split_terminator('|') {
             let n_v: Vec<&str> = dim.split(":!").collect();
             match n_v[0] {
@@ -330,10 +327,10 @@ impl Deserializable for FourMat {
 
     fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
         if let Ok(4) = read_array_len(&mut bytes){
-            let mut x: [FourVec;4] = [FourVec::new(NAN,NAN,NAN,NAN);4];
-            for i in 0..4 {
-                let (vec,rest) = FourVec::from_msg(&mut bytes)?;
-                x[i] = vec;
+            let mut x: [FourVec;4] = [FourVec::new(f64::NAN,f64::NAN,f64::NAN,f64::NAN);4];
+            for item in &mut x {
+                let (vec,rest) = FourVec::from_msg(bytes)?;
+                *item = vec;
                 bytes = rest;
             }
             Ok((FourMat::from(&x),bytes))
@@ -518,7 +515,7 @@ impl Neg for FourMat {
 /// assert_eq!(boost(vec4,ThreeVec::new(0.0,0.0,0.0)).unwrap(),vec4);
 ///
 /// ```
-pub fn boost<'a>(initial: FourVec, v: ThreeVec) -> Result<FourVec,CalcifyError> {
+pub fn boost(initial: FourVec, v: ThreeVec) -> Result<FourVec,CalcifyError> {
     let bx = beta(*v.x0())?;
     let by = beta(*v.x1())?;
     let bz = beta(*v.x2())?;

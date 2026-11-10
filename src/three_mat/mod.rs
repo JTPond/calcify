@@ -6,7 +6,6 @@ use std::ops::Mul;
 use std::ops::Neg;
 use std::fmt;
 use std::error;
-use std::f64::NAN;
 
 /// Three Vector Module
 mod three_vec;
@@ -17,7 +16,6 @@ use crate::utils;
 use utils::{Serializable, Deserializable};
 use utils::errors::CalcifyError;
 
-extern crate rmp;
 use rmp::encode::*;
 use rmp::decode::*;
 
@@ -262,9 +260,9 @@ impl Serializable for ThreeMat {
 impl Deserializable for ThreeMat {
 
     fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
-        let mut r0: ThreeVec = ThreeVec::new(NAN,NAN,NAN);
-        let mut r1: ThreeVec = ThreeVec::new(NAN,NAN,NAN);
-        let mut r2: ThreeVec = ThreeVec::new(NAN,NAN,NAN);
+        let mut r0: ThreeVec = ThreeVec::new(f64::NAN,f64::NAN,f64::NAN);
+        let mut r1: ThreeVec = ThreeVec::new(f64::NAN,f64::NAN,f64::NAN);
+        let mut r2: ThreeVec = ThreeVec::new(f64::NAN,f64::NAN,f64::NAN);
         for dim in s.replace("}}","|}").replace("},","}|").replace(":{",":!{").trim_matches(|p| p == '{' || p == '}' ).split_terminator('|') {
             let n_v: Vec<&str> = dim.split(":!").collect();
             match n_v[0] {
@@ -279,10 +277,10 @@ impl Deserializable for ThreeMat {
 
     fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
         if let Ok(3) = read_array_len(&mut bytes){
-            let mut x: [ThreeVec;3] = [ThreeVec::new(NAN,NAN,NAN);3];
-            for i in 0..3 {
-                let (vec,rest) = ThreeVec::from_msg(&mut bytes)?;
-                x[i] = vec;
+            let mut x: [ThreeVec;3] = [ThreeVec::new(f64::NAN,f64::NAN,f64::NAN);3];
+            for item in &mut x {
+                let (vec,rest) = ThreeVec::from_msg(bytes)?;
+                *item = vec;
                 bytes = rest;
             }
             Ok((ThreeMat::from(&x),bytes))

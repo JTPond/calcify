@@ -1,7 +1,6 @@
 use std::marker::Sized;
 use std::error;
 
-extern crate rmp;
 use rmp::encode::*;
 use rmp::decode::*;
 /// Serialization trait which all types you intend to put in a Tree need to implement.

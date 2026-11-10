@@ -18,7 +18,6 @@ use utils::{Serializable, Deserializable};
 use utils::errors::CalcifyError;
 use utils::io::{ToFile,FromFile};
 
-extern crate rmp;
 use rmp::encode::*;
 use rmp::decode::*;
 
@@ -64,7 +63,7 @@ impl Tree {
     }
 
     pub fn add_field(&mut self, key: &str, f: &str) -> Result<(),CalcifyError> {
-        if let Some(_) = self.metadata.insert(String::from(key),String::from(f)) {
+        if self.metadata.insert(String::from(key),String::from(f)).is_some() {
             return Err(CalcifyError::KeyError);
         }
         Ok(())
@@ -85,7 +84,7 @@ impl Tree {
         let types = ["f64","String","ThreeVec","ThreeMat","FourVec","FourMat","Bin","Point","PointBin","Object"];
         if types.contains(&t) {
             let br = Branch::new(String::from(t),Box::new(b));
-            if let Some(_) = self.branches.insert(String::from(key),br) {
+            if self.branches.insert(String::from(key),br).is_some() {
                 return Err(CalcifyError::KeyError);
             }
             Ok(())
@@ -228,12 +227,21 @@ impl Deserializable for Tree {
         let mut branches: HashMap<String,Branch> = HashMap::new();
         if let Ok(len) = read_map_len(&mut bytes) {
             for _ in 0..len {
-                let mut unparsed: &[u8] = &bytes[..];
+                let mut unparsed: &[u8] = bytes;
                 if let Ok((key,v_rest)) = read_str_from_slice(unparsed) {
                     match key {
                         "branches" => {
-                            bytes = v_rest;
-                            break;
+                            let mut cur = v_rest;
+                            if let Ok(flen) = read_map_len(&mut cur) {
+                                for _ in 0..flen {
+                                    if let Ok((bkey,bv_rest)) = read_str_from_slice(cur)
+                                        && let Ok((value,rest)) = Branch::from_msg(bv_rest) {
+                                            cur = rest;
+                                            branches.insert(String::from(bkey),value);
+                                        }
+                                }
+                            }
+                            unparsed = cur;
                         },
                         _ => {
                             if let Ok((value,rest)) = read_str_from_slice(v_rest) {
@@ -245,17 +253,6 @@ impl Deserializable for Tree {
 
                 }
                 bytes = unparsed;
-            }
-            if let Ok(flen) = read_map_len(&mut bytes) {
-                for _ in 0..flen {
-                    let unparsed: &[u8] = &bytes[..];
-                    if let Ok((key,v_rest)) = read_str_from_slice(unparsed) {
-                        if let Ok((value,rest)) = Branch::from_msg(v_rest) {
-                            bytes = rest;
-                            branches.insert(String::from(key),value);
-                        }
-                    }
-                }
             }
         }
         Ok((Tree{metadata, branches},bytes))
@@ -288,8 +285,13 @@ mod tests {
         let fcol: Collection<f64> = Collection::from(vec![0.0,0.0]);
         let mut col_3v: Collection<ThreeVec> = Collection::empty();
         for _i in 0..9 {col_3v.push(ThreeVec::new(1.0,2.0,3.0));}
+        let mut ttree = Tree::new("Test_Tree");
+        ttree.add_field("Desc", "This is a Tree for testing.")?;
+        ttree.add_branch("fcol", fcol.clone(), "f64")?;
+        ttree.add_branch("col_3v", col_3v.clone(), "ThreeVec")?;
+        ttree.write_msg("./scratch/test_tree_read.msg")?;
 
-        let mut ftree = Tree::read_msg("./scratch/test_tree.msg")?;
+        let mut ftree = Tree::read_msg("./scratch/test_tree_read.msg")?;
         let ftree_branch1: Collection<f64> = ftree.read_branch("fcol")?;
         assert_eq!(ftree_branch1,fcol);
         let ftree_branch2: Collection<ThreeVec> = ftree.read_branch("col_3v")?;

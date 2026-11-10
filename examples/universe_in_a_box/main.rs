@@ -1,11 +1,6 @@
 use std::error;
 
-#[macro_use]
-extern crate lazy_static;
-
-extern crate calcify;
-extern crate chrono;
-
+use lazy_static::lazy_static;
 use chrono::prelude::*;
 
 use calcify::Tree;
@@ -48,12 +43,12 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                                             .hist(50,50);
 
     ftree.add_field("Desc","A FeedTree of states for the simple universe in a box multiparticle simulation.")?;
-    ftree.add_field("Details", &*DETAILS)?;
-    ftree.add_field("Run on",&*NOWS)?;
+    ftree.add_field("Details", &DETAILS)?;
+    ftree.add_field("Run on",&NOWS)?;
 
     ttree.add_field("Desc","A Tree data branches for the simple universe in a box multiparticle simulation.")?;
-    ttree.add_field("Details", &*DETAILS)?;
-    ttree.add_field("Run on",&*NOWS)?;
+    ttree.add_field("Details", &DETAILS)?;
+    ttree.add_field("Run on",&NOWS)?;
 
 
 

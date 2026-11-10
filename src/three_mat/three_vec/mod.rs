@@ -1,7 +1,3 @@
-extern crate rand;
-
-use std::f64;
-use self::f64::NAN;
 use std::ops::Add;
 use std::ops::AddAssign;
 use std::ops::Sub;
@@ -12,14 +8,13 @@ use std::iter;
 use std::fmt;
 use std::error;
 
-use self::rand::thread_rng;
-use self::rand::distributions::{Distribution, Uniform};
+use rand::thread_rng;
+use rand::distributions::{Distribution, Uniform};
 
 use crate::utils;
 use utils::{Serializable, Deserializable};
 use utils::errors::CalcifyError;
 
-extern crate rmp;
 use rmp::encode::*;
 use rmp::decode::*;
 
@@ -174,9 +169,9 @@ impl Serializable for ThreeVec {
 impl Deserializable for ThreeVec {
 
     fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
-        let mut x0: f64 = NAN;
-        let mut x1: f64 = NAN;
-        let mut x2: f64 = NAN;
+        let mut x0: f64 = f64::NAN;
+        let mut x1: f64 = f64::NAN;
+        let mut x2: f64 = f64::NAN;
         for dim in s.trim_matches(|p| p == '{' || p == '}' ).split(',') {
             let n_v: Vec<&str> = dim.split(':').collect();
             match n_v[0] {
@@ -191,9 +186,9 @@ impl Deserializable for ThreeVec {
 
     fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
         if let Ok(3) = read_array_len(&mut bytes){
-            let mut x: [f64;3] = [NAN;3];
-            for i in 0..3 {
-                x[i] = read_f64(&mut bytes)?;
+            let mut x: [f64;3] = [f64::NAN;3];
+            for item in &mut x {
+                *item = read_f64(&mut bytes)?;
             }
             Ok((ThreeVec::from(&x),bytes))
         } else {
@@ -344,7 +339,7 @@ pub fn degrees_between(one: ThreeVec, other: ThreeVec) -> f64 {
     let dot = one*other;
     let r1 = (one*one).sqrt();
     let r2 = (other*other).sqrt();
-    (dot/(r1*r2)).acos()*(180.0/f64::consts::PI)
+    (dot/(r1*r2)).acos()*(180.0/std::f64::consts::PI)
 }
 
 #[cfg(test)]

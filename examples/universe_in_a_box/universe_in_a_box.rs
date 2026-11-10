@@ -2,13 +2,10 @@ use std::fmt;
 use std::str::FromStr;
 use std::error;
 
-extern crate rayon;
 use rayon::prelude::*;
 
-extern crate rmp;
 use rmp::encode::*;
 
-extern crate calcify;
 pub use calcify::ThreeVec;
 use calcify::{Serializable, Deserializable};
 
@@ -86,9 +83,9 @@ impl Particle {
             if *part2.pid() != self.pid {
                 let rmrp = self.position - *part2.r();
                 let r2 = rmrp*rmrp;
-                return (rmrp*(1.0/r2.sqrt()))*((-g*self.mass*part2.m())*(1.0/r2));
+                (rmrp*(1.0/r2.sqrt()))*((-g*self.mass*part2.m())*(1.0/r2))
             } else {
-                return ThreeVec::new(0.0,0.0,0.0);
+                ThreeVec::new(0.0,0.0,0.0)
             }
         }).sum();
     }
@@ -138,7 +135,7 @@ impl FromStr for Particle {
                     }
                 },
                 0 => {
-                    for (_j,ky_vl) in chunk.trim_matches(|p| p == '{').split_terminator(",").enumerate() {
+                    for ky_vl in chunk.trim_matches(|p| p == '{').split_terminator(",") {
                         let n_v: Vec<&str> = ky_vl.split(":").collect();
                         match n_v[0] {
                             "\"pid\"" => pid = n_v[1].parse::<usize>()?,
@@ -181,17 +178,17 @@ impl Universe {
         for ti in 0..t {
             if ti%100 == 0 {println!("timestamp: {}", ti);}
             let prev_state = self.previous_state.clone();
-            for i in 0..self.state.len() as usize{
-                cur_state[i].force(&prev_state);
-                let diff = (*cur_state[i].v()*self.dt)+(*cur_state[i].f()*0.5*self.dt*self.dt);
-                cur_state[i].translate(&diff);
+            for item in cur_state.iter_mut().take(self.state.len()){
+                item.force(&prev_state);
+                let diff = (*item.v()*self.dt)+(*item.f()*0.5*self.dt*self.dt);
+                item.translate(&diff);
             }
             let lo_state = cur_state.clone();
-            for i in 0..self.state.len() as usize{
-                let pre_force = *cur_state[i].f();
-                cur_state[i].force(&lo_state);
-                let diff = (*cur_state[i].f() + pre_force)*0.5*self.dt;
-                cur_state[i].accelerate(&diff);
+            for item in cur_state.iter_mut().take(self.state.len()){
+                let pre_force = *item.f();
+                item.force(&lo_state);
+                let diff = (*item.f() + pre_force)*0.5*self.dt;
+                item.accelerate(&diff);
             }
             self.previous_state = cur_state.clone();
         }

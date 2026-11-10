@@ -1,7 +1,3 @@
-extern crate rand;
-
-use std::f64;
-use self::f64::NAN;
 use std::ops::Add;
 use std::ops::AddAssign;
 use std::ops::Sub;
@@ -12,12 +8,11 @@ use std::iter;
 use std::fmt;
 use std::error;
 
-extern crate rmp;
 use rmp::encode::*;
 use rmp::decode::*;
 
-use self::rand::thread_rng;
-use self::rand::distributions::{Distribution, Uniform};
+use rand::thread_rng;
+use rand::distributions::{Distribution, Uniform};
 
 use crate::utils;
 use utils::{Serializable, Deserializable};
@@ -119,8 +114,8 @@ impl Serializable for Point {
 impl Deserializable for Point {
 
     fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
-        let mut x: f64 = NAN;
-        let mut y: f64 = NAN;
+        let mut x: f64 = f64::NAN;
+        let mut y: f64 = f64::NAN;
         for dim in s.trim_matches(|p| p == '{' || p == '}' ).split(',') {
             let n_v: Vec<&str> = dim.split(':').collect();
             match n_v[0] {
@@ -134,9 +129,9 @@ impl Deserializable for Point {
 
     fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
         if let Ok(2) = read_array_len(&mut bytes){
-            let mut x: [f64;2] = [NAN;2];
-            for i in 0..2 {
-                x[i] = read_f64(&mut bytes)?;
+            let mut x: [f64;2] = [f64::NAN;2];
+            for item in &mut x {
+                *item = read_f64(&mut bytes)?;
             }
             Ok((Point::from(&x),bytes))
         } else {

@@ -15,7 +15,7 @@ pub trait ToFile {
         where Self: Serializable {
             let f = fs::File::create(filename)?;
             let mut wr = BufWriter::new(f);
-            wr.write(self.to_json().as_bytes())?;
+            wr.write_all(self.to_json().as_bytes())?;
             Ok(())
     }
 
@@ -24,7 +24,7 @@ pub trait ToFile {
         where Self: Serializable {
             let f = fs::File::create(filename)?;
             let mut wr = BufWriter::new(f);
-            wr.write(self.to_msg()?.as_slice())?;
+            wr.write_all(self.to_msg()?.as_slice())?;
             Ok(())
     }
 }
@@ -41,9 +41,9 @@ pub trait FromFile {
     fn read_msg(filename: &str) -> Result<Self, Box<dyn error::Error>>
         where Self: Deserializable + Sized {
             if let Ok((obj,_)) = Self::from_msg(&fs::read(filename)?) {
-                return Ok(obj);
+                Ok(obj)
             } else {
-                return Err(Box::new(CalcifyError::ParseError));
+                Err(Box::new(CalcifyError::ParseError))
             }
     }
 }

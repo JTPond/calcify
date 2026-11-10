@@ -1,5 +1,11 @@
 # Release Notes
 
+### 0.8.3 2026-11-10:
+* Update to Rust 2024 edition and modern toolchains
+* Fix MessagePack deserialization map ordering for `Tree` and `FeedTree`
+* Fix `"Bin"`, `"Point"`, and `"PointBin"` MessagePack branch deserialization
+* Add `Collection::is_empty`
+
 ### 0.8.2 2022-01-16:
 * Add PointBin 2D hist type
 

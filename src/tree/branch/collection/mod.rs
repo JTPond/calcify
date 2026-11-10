@@ -16,7 +16,6 @@ use crate::utils;
 use utils::{Serializable, Deserializable};
 use utils::errors::CalcifyError;
 
-extern crate rmp;
 use rmp::encode::*;
 use rmp::decode::*;
 
@@ -24,8 +23,8 @@ use rmp::decode::*;
 ///
 /// # Note
 /// * Collection only implements some basic functionality of real Vecs.
-/// The goal is not to supersede, but to add to.
-/// So you should use Vec in most cases, and wrap it in a Collection if you need one of those functions.
+///   The goal is not to supersede, but to add to.
+///   So you should use Vec in most cases, and wrap it in a Collection if you need one of those functions.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Collection<T: Serializable> {
     pub vec: Vec<T>,
@@ -150,6 +149,10 @@ impl<T: Serializable> Collection<T> {
         self.vec.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.vec.is_empty()
+    }
+
 }
 
 impl<T: Serializable + Clone> From<&[T]> for Collection<T> {
@@ -219,12 +222,11 @@ impl<T: Serializable> Serializable for Collection<T> {
 impl<T: Serializable + Deserializable> Deserializable for Collection<T> {
     fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
         let mut out: Self = Collection::empty();
-        let s_iter: String;
-        if s.starts_with("[{") {
-            s_iter = s.replace("},{","}|{");
+        let s_iter: String = if s.starts_with("[{") {
+            s.replace("},{","}|{")
         } else {
-            s_iter = s.replace(",","|");
-        }
+            s.replace(",","|")
+        };
         for ff in s_iter.trim_matches(|p| p == '[' || p == ']' ).split('|'){
             if let Ok(f) = T::from_json(ff) {
                 out.push(f);
@@ -240,7 +242,7 @@ impl<T: Serializable + Deserializable> Deserializable for Collection<T> {
         let mut out: Self = Collection::empty();
         if let Ok(len) = read_array_len(&mut bytes){
             for _ in 0..len {
-                if let Ok((ot,rest)) = T::from_msg(&mut bytes) {
+                if let Ok((ot,rest)) = T::from_msg(bytes) {
                     out.push(ot);
                     bytes = rest;
                 } else {
@@ -396,7 +398,7 @@ impl Collection<Point> {
         }
         let o_vec: Vec<PointBin> = outs.iter().flatten().cloned().collect();
         let out: Collection<PointBin> = Collection::from(o_vec);
-        return out;
+        out
     }
 }
 
@@ -475,15 +477,15 @@ mod tests {
                 col_3v.push(ThreeVec::random(10000.0));
             }
         let len_col: Collection<f64> = col_3v.map(|tv| { *tv.x0()});
-        wr.write(len_col.hist(50).to_json().as_bytes()).unwrap();
+        wr.write_all(len_col.hist(50).to_json().as_bytes()).unwrap();
     }
 
     #[test]
     fn test_plot() {
         let f = File::create("./scratch/test_plot.json").unwrap();
         let mut wr = BufWriter::new(f);
-        let test_plot: Collection<Point> = Collection::plot(&vec![0.0,1.0,2.0],&vec![3.0,4.0,5.0]);
-        wr.write(test_plot.to_json().as_bytes()).unwrap();
+        let test_plot: Collection<Point> = Collection::plot(&[0.0,1.0,2.0],&[3.0,4.0,5.0]);
+        wr.write_all(test_plot.to_json().as_bytes()).unwrap();
     }
 
     #[test]
@@ -494,6 +496,6 @@ mod tests {
         for _i in 0..9999 {
             col_3v.push(ThreeVec::random(10.0));
         }
-        wr.write(col_3v.map(ThreeVec::r).to_json().as_bytes()).unwrap();
+        wr.write_all(col_3v.map(ThreeVec::r).to_json().as_bytes()).unwrap();
     }
 }

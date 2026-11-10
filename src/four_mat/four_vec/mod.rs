@@ -1,5 +1,3 @@
-use std::f64;
-use self::f64::NAN;
 use std::ops::Add;
 use std::ops::AddAssign;
 use std::ops::Sub;
@@ -19,7 +17,6 @@ use utils::consts;
 use utils::{Serializable, Deserializable};
 use utils::errors::CalcifyError;
 
-extern crate rmp;
 use rmp::encode::*;
 use rmp::decode::*;
 
@@ -46,9 +43,9 @@ pub enum Sinv {
 /// use calcify::errors::CalcifyError;
 /// let v = 149_896_229.0;
 /// assert_eq!(beta(v).unwrap(),0.5);
-/// assert!(beta(10e10).is_err(),CalcifyError::LightSpeedError);
+/// assert!(beta(10e10).is_err(),"{}", CalcifyError::LightSpeedError);
 /// ```
-pub fn beta<'a>(v: f64) -> Result<f64,CalcifyError> {
+pub fn beta(v: f64) -> Result<f64,CalcifyError> {
     let b1 = v/consts::C_LIGHT;
     match b1 <= 1.0 {
         true => Ok(b1),
@@ -285,10 +282,10 @@ impl Serializable for FourVec {
 impl Deserializable for FourVec {
 
     fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
-        let mut m0: f64 = NAN;
-        let mut m1: f64 = NAN;
-        let mut m2: f64 = NAN;
-        let mut m3: f64 = NAN;
+        let mut m0: f64 = f64::NAN;
+        let mut m1: f64 = f64::NAN;
+        let mut m2: f64 = f64::NAN;
+        let mut m3: f64 = f64::NAN;
         for dim in s.trim_matches(|p| p == '{' || p == '}' ).split(',') {
             let n_v: Vec<&str> = dim.split(':').collect();
             match n_v[0] {
@@ -304,9 +301,9 @@ impl Deserializable for FourVec {
 
     fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
         if let Ok(4) = read_array_len(&mut bytes){
-            let mut x: [f64;4] = [NAN;4];
-            for i in 0..4 {
-                x[i] = read_f64(&mut bytes)?;
+            let mut x: [f64;4] = [f64::NAN;4];
+            for item in &mut x {
+                *item = read_f64(&mut bytes)?;
             }
             Ok((FourVec::from(&x),bytes))
         } else {
