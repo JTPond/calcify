@@ -6,7 +6,6 @@ use std::io::BufWriter;
 use std::fs;
 
 use super::serializable::{Serializable, Deserializable};
-use super::errors::CalcifyError;
 
 /// Trait for saving a *Tree to disk.
 pub trait ToFile {
@@ -40,10 +39,7 @@ pub trait FromFile {
     /// Read msg file to Self.
     fn read_msg(filename: &str) -> Result<Self, Box<dyn error::Error>>
         where Self: Deserializable + Sized {
-            if let Ok((obj,_)) = Self::from_msg(&fs::read(filename)?) {
-                Ok(obj)
-            } else {
-                Err(Box::new(CalcifyError::ParseError))
-            }
+            let (obj, _) = Self::from_msg(&fs::read(filename)?)?;
+            Ok(obj)
     }
 }

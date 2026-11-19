@@ -1,5 +1,13 @@
 # Release Notes
 
+### 0.9.0 2026-11-19:
+* Add generic `StampedSample<T: Serializable>` type (`timestamp: i64`, `value: T`) with JSON (`{"timestamp":...,"value":...}`) and MessagePack (`[timestamp, value]`) serialization and deserialization
+* Add timestamped stream operations on `Collection<StampedSample<T>>`: `stream`, `push_sample`, `timestamps`, `values`, `map_values`, `window`, `sort_by_timestamp`, `sorted_by_timestamp`, `is_monotonic`, `time_bounds`, and `deltas`, plus `to_points`, `to_points_since`, and `hist` on scalar/`Point` streams
+* Add `Tree` and `Branch` stamped stream support (`Tree::add_stamped_branch`, `Tree::read_stamped_branch`, `Tree::get_field`, `Branch::new_stamped`, `Branch::subtype`, `Branch::value_subtype`) using a separate `"value_subtype"` metadata field
+* Add `FeedTree` stamped stream helpers (`FeedTree::new_stamped`, `FeedTree::add_stream`, `FeedTree::write_sample`, `FeedTree::write_samples`, `FeedTree::get_field`, `FeedTree::subtype`, `FeedTree::value_subtype`, `FeedTree::get_feed_mut`) using `"SubType": "StampedSample"` and `"ValueSubType"`
+* Implement `Serializable`/`Deserializable` for `i64` and `Deserializable` for `String`, add `"i64"` and `"u64"` as built-in branch subtypes, and harden JSON/MessagePack parsing for `Collection`, `Branch`, `Tree`, and `FeedTree` (nested objects, empty collections/maps, arbitrary key order, and error propagation)
+* Add `decay_signals` example (`examples/decay_signals.rs`) generating 10,000 timestamped Gaussian energy events over 24 hours with a decaying event rate
+
 ### 0.8.3 2026-11-10:
 * Update to Rust 2024 edition and modern toolchains
 * Fix MessagePack deserialization map ordering for `Tree` and `FeedTree`

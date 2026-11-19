@@ -65,9 +65,60 @@ fn main() -> Result<(),Box<dyn error::Error>> {
 }
 ```
 
-## Example
+## Stamped Samples
 
-`cargo run --example universe_in_a_box --release`
+`StampedSample<T: Serializable>` pairs an exact `i64` integer timestamp with any `Serializable` Calcify payload (`f64`, `i64`, `u64`, `String`, `ThreeVec`, `ThreeMat`, `FourVec`, `FourMat`, `Bin`, `Point`, `PointBin`, or custom `Object` types).
+
+### Why use `StampedSample`?
+
+* **Full integer timestamp precision:** Unlike storing time in `Point` (`f64`, which loses integer precision above 2^53), `i64` timestamps represent Unix epoch milliseconds, microseconds, nanoseconds, or signed simulation ticks without rounding error.
+* **Works with any payload type:** Timestamp streams can wrap scalars, vectors, matrices, histograms, strings, or custom simulation structs uniformly in `Collection<StampedSample<T>>`, `Tree`, and `FeedTree`.
+* **Built-in stream operations:** `Collection<StampedSample<T>>` provides `window`, `sort_by_timestamp`, `sorted_by_timestamp`, `is_monotonic`, `time_bounds`, `deltas`, `map_values`, `timestamps`, `values`, plus `to_points`, `to_points_since`, and `hist` on scalar/`Point` streams.
+* **Native ICalcify support:** `Tree` (`value_subtype`) and `FeedTree` (`ValueSubType`) preserve the inner value type so `ICalcify` automatically loads stamped streams as `StampedSampleBranch` objects ready for windowing, `time_hist`, `hist`, `hist2d`, plotting, and curve fitting.
+
+### Stamped Stream Example
+
+```rust
+use std::error;
+
+use calcify::{Collection, FeedTree, StampedSample, Tree};
+use calcify::io::ToFile;
+
+fn main() -> Result<(), Box<dyn error::Error>> {
+    // Collect timestamped scalar readings (e.g., epoch milliseconds)
+    let mut events: Collection<StampedSample<f64>> = Collection::empty();
+    events.push_sample(1_700_000_000_250, 5.12);
+    events.push_sample(1_700_000_000_100, 4.87);
+    events.push_sample(1_700_000_000_500, 5.34);
+
+    // Sort chronologically, slice a time window, and inspect inter-arrival deltas
+    events.sort_by_timestamp();
+    assert!(events.is_monotonic());
+    let early = events.window(1_700_000_000_000, 1_700_000_000_300);
+    let inter_arrival_ms = events.deltas();
+
+    // Save into a Tree using add_stamped_branch
+    let mut tree = Tree::new("detector_run");
+    tree.add_stamped_branch("events", events.clone(), "f64")?;
+    tree.add_stamped_branch("early_events", early, "f64")?;
+    tree.add_branch("inter_arrival_ms", inter_arrival_ms, "i64")?;
+    tree.write_msg("detector_run.msg")?;
+
+    // Or append incrementally into a stamped FeedTree
+    let mut feed: FeedTree<StampedSample<f64>> = FeedTree::new_stamped("live_feed", "f64");
+    feed.add_stream("channel_a")?;
+    feed.write_samples("channel_a", events)?;
+    feed.write_sample("channel_a", 1_700_000_000_900, 4.95)?;
+    feed.write_msg("live_feed.msg")?;
+
+    Ok(())
+}
+```
+
+## Examples
+
+* `cargo run --example universe_in_a_box --release` — Many-body gravitational particle simulation writing `Tree` and `FeedTree` snapshots.
+* `cargo run --example decay_signals` — Generates 10,000 `StampedSample<f64>` detector energy events over 24 hours with a decaying event rate and a Gaussian energy distribution, ready to histogram and fit in ICalcify.
 
 ## Notes about File IO
 

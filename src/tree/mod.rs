@@ -7,7 +7,9 @@ pub use branch::Collection;
 pub use branch::Bin;
 pub use branch::Point;
 pub use branch::PointBin;
+pub use branch::StampedSample;
 pub use branch::Branch;
+use branch::{STAMPED_SAMPLE_SUBTYPE, VALUE_SUBTYPES};
 
 mod feedtree;
 
@@ -17,6 +19,7 @@ use crate::utils;
 use utils::{Serializable, Deserializable};
 use utils::errors::CalcifyError;
 use utils::io::{ToFile,FromFile};
+use utils::serializable::split_json_object;
 
 use rmp::encode::*;
 use rmp::decode::*;
@@ -69,27 +72,75 @@ impl Tree {
         Ok(())
     }
 
+    pub fn get_field(&self, key: &str) -> Option<&str> {
+        self.metadata.get(key).map(|s| s.as_str())
+    }
+
     /// Inserts new branch into Tree.
     ///
     /// # Arguments
     ///
     /// * `key` - Hash key, String
     /// * `b` - Branch,  Collection<T: Serializable>
-    /// * `t` - Collection subtype,  String, one of "f64", "String", "ThreeVec", "ThreeMat", "FourVec", "FourMat", "Bin", "Point", "Object"
+    /// * `t` - Collection subtype,  String, one of "f64", "i64", "u64", "String", "ThreeVec", "ThreeMat", "FourVec", "FourMat", "Bin", "Point", "PointBin", "Object"
     ///
     /// # Panics
     ///
-    /// * `t` is invalid
+    /// * `t` is invalid or is `"StampedSample"` (use [`Tree::add_stamped_branch`] instead)
     pub fn add_branch<T: 'static + Serializable>(&mut self, key: &str, b: Collection<T>, t: &str) -> Result<(),CalcifyError> {
-        let types = ["f64","String","ThreeVec","ThreeMat","FourVec","FourMat","Bin","Point","PointBin","Object"];
-        if types.contains(&t) {
+        if t == STAMPED_SAMPLE_SUBTYPE {
+            panic!("Use Tree::add_stamped_branch(key, branch, value_subtype) for StampedSample branches.");
+        }
+        if VALUE_SUBTYPES.contains(&t) {
             let br = Branch::new(String::from(t),Box::new(b));
             if self.branches.insert(String::from(key),br).is_some() {
                 return Err(CalcifyError::KeyError);
             }
             Ok(())
         } else {
-            panic!("Subtype must be one of \"f64\", \"String\", \"ThreeVec\", \"ThreeMat\", \"FourVec\", \"FourMat\", \"Bin\", \"Point\", \"PointBin\", \"Object\" not {}",t);
+            panic!("Subtype must be one of {:?} not {}", VALUE_SUBTYPES, t);
+        }
+    }
+
+    /// Inserts a timestamped stream branch (`Collection<StampedSample<T>>`) into `Tree`.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - Hash key
+    /// * `b` - `Collection<StampedSample<T>>`
+    /// * `value_subtype` - Inner value subtype (`"f64"`, `"i64"`, `"u64"`, `"String"`, `"ThreeVec"`, `"ThreeMat"`, `"FourVec"`, `"FourMat"`, `"Bin"`, `"Point"`, `"PointBin"`, or `"Object"`)
+    ///
+    /// # Panics
+    ///
+    /// * `value_subtype` is invalid
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::{Collection, StampedSample, ThreeVec, Tree};
+    ///
+    /// let stream = Collection::stream(&[1, 2], &[ThreeVec::new(1.0, 0.0, 0.0), ThreeVec::new(0.0, 1.0, 0.0)]);
+    /// let mut ttree = Tree::new("Test_Tree");
+    /// ttree.add_stamped_branch("positions", stream, "ThreeVec").unwrap();
+    /// let read_back: Collection<StampedSample<ThreeVec>> = ttree.read_stamped_branch("positions").unwrap();
+    /// assert_eq!(read_back.len(), 2);
+    /// ```
+    pub fn add_stamped_branch<T: 'static + Serializable>(
+        &mut self,
+        key: &str,
+        b: Collection<StampedSample<T>>,
+        value_subtype: &str,
+    ) -> Result<(), CalcifyError> {
+        if VALUE_SUBTYPES.contains(&value_subtype) {
+            let br = Branch::new_stamped(String::from(value_subtype), Box::new(b));
+            if self.branches.insert(String::from(key), br).is_some() {
+                return Err(CalcifyError::KeyError);
+            }
+            Ok(())
+        } else {
+            panic!(
+                "Value subtype must be one of {:?} not {}",
+                VALUE_SUBTYPES, value_subtype
+            );
         }
     }
 
@@ -159,19 +210,44 @@ impl Tree {
         }
         Err(CalcifyError::KeyError)
     }
+
+    /// Reads a timestamped stream branch (`Collection<StampedSample<T>>`) from `Tree`.
+    ///
+    /// Returns `CalcifyError::KeyError` if `key` does not exist, or `CalcifyError::ParseError`
+    /// if the branch is not a `StampedSample` branch or its inner value type does not match `T`.
+    pub fn read_stamped_branch<T: Serializable + Deserializable>(
+        &mut self,
+        key: &str,
+    ) -> Result<Collection<StampedSample<T>>, CalcifyError> {
+        if let Some(branch) = self.branches.get_mut(key) {
+            if branch.subtype() != STAMPED_SAMPLE_SUBTYPE {
+                return Err(CalcifyError::ParseError);
+            }
+            if let Ok(collect) = branch.extract::<StampedSample<T>>() {
+                return Ok(collect);
+            } else {
+                return Err(CalcifyError::ParseError);
+            }
+        }
+        Err(CalcifyError::KeyError)
+    }
 }
 
 impl Serializable for Tree {
     fn to_json(&self) -> String {
         let mut out = String::from("{");
         for (key, val) in &self.metadata {
-            out.push_str(format!("\"{}\":\"{}\",",key,val).as_str());
+            out.push_str(&format!("{}:{},", key.to_json(), val.to_json()));
         }
         out.push_str("\"branches\":{");
+        let mut first = true;
         for (key, val) in &self.branches {
-            out.push_str(format!("\"{}\":{},",key,val.to_json()).as_str());
+            if !first {
+                out.push(',');
+            }
+            first = false;
+            out.push_str(&format!("{}:{}", key.to_json(), val.to_json()));
         }
-        out.pop();
         out.push_str("}}");
         out
     }
@@ -195,67 +271,79 @@ impl Serializable for Tree {
 
 impl Deserializable for Tree {
     fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
-        let mut metadata: HashMap<String,String> = HashMap::new();
-        let mut branches: HashMap<String,Branch> = HashMap::new();
-        for (i,mut dim) in s.split(",\"branches\":").enumerate() {
-            match i {
-                0 => {
-                    for pair in dim.trim_matches(|p| p == '{' || p == '"' ).split("\",\"") {
-                        let ar: Vec<&str> = pair.split("\":\"").collect();
-                        metadata.insert(String::from(ar[0]),String::from(ar[1]));
+        let mut metadata: HashMap<String, String> = HashMap::new();
+        let mut branches: HashMap<String, Branch> = HashMap::new();
+        let mut has_branches = false;
+        for (key, val_str) in split_json_object(s)? {
+            match key.as_str() {
+                "branches" => {
+                    if has_branches {
+                        return Err(Box::new(CalcifyError::ParseError));
                     }
-                },
-                1 => {
-                    dim = dim.trim_matches(|p| p == '{' || p == '}' || p == '"' );
-                    for pair in dim.split("},\"") {
-                        let ar: Vec<&str> = pair.split("\":").collect();
-                        if let Ok(branch) = Branch::from_json(&ar[1..].join("\":")){
-                            branches.insert(String::from(ar[0]),branch);
-                        } else {
+                    has_branches = true;
+                    for (bkey, bval) in split_json_object(val_str)? {
+                        let branch = Branch::from_json(bval)?;
+                        if branches.insert(bkey, branch).is_some() {
                             return Err(Box::new(CalcifyError::ParseError));
                         }
                     }
-                },
-                _ => return Err(Box::new(CalcifyError::ParseError)),
+                }
+                _ => {
+                    let val = String::from_json(val_str)?;
+                    if metadata.insert(key, val).is_some() {
+                        return Err(Box::new(CalcifyError::ParseError));
+                    }
+                }
             }
         }
-        Ok(Tree{metadata, branches})
+        if !has_branches {
+            return Err(Box::new(CalcifyError::ParseError));
+        }
+        Ok(Tree { metadata, branches })
     }
 
     fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
-        let mut metadata: HashMap<String,String> = HashMap::new();
-        let mut branches: HashMap<String,Branch> = HashMap::new();
-        if let Ok(len) = read_map_len(&mut bytes) {
-            for _ in 0..len {
-                let mut unparsed: &[u8] = bytes;
-                if let Ok((key,v_rest)) = read_str_from_slice(unparsed) {
-                    match key {
-                        "branches" => {
-                            let mut cur = v_rest;
-                            if let Ok(flen) = read_map_len(&mut cur) {
-                                for _ in 0..flen {
-                                    if let Ok((bkey,bv_rest)) = read_str_from_slice(cur)
-                                        && let Ok((value,rest)) = Branch::from_msg(bv_rest) {
-                                            cur = rest;
-                                            branches.insert(String::from(bkey),value);
-                                        }
-                                }
-                            }
-                            unparsed = cur;
-                        },
-                        _ => {
-                            if let Ok((value,rest)) = read_str_from_slice(v_rest) {
-                                unparsed = rest;
-                                metadata.insert(String::from(key),String::from(value));
-                            }
-                        },
+        let mut metadata: HashMap<String, String> = HashMap::new();
+        let mut branches: HashMap<String, Branch> = HashMap::new();
+        let mut has_branches = false;
+        let len = read_map_len(&mut bytes)
+            .map_err(|_| Box::new(CalcifyError::ParseError) as Box<dyn error::Error>)?;
+        for _ in 0..len {
+            let (key, v_rest) = read_str_from_slice(bytes)
+                .map_err(|_| Box::new(CalcifyError::ParseError) as Box<dyn error::Error>)?;
+            match key {
+                "branches" => {
+                    if has_branches {
+                        return Err(Box::new(CalcifyError::ParseError));
                     }
-
+                    has_branches = true;
+                    let mut cur = v_rest;
+                    let flen = read_map_len(&mut cur)
+                        .map_err(|_| Box::new(CalcifyError::ParseError) as Box<dyn error::Error>)?;
+                    for _ in 0..flen {
+                        let (bkey, bv_rest) = read_str_from_slice(cur)
+                            .map_err(|_| Box::new(CalcifyError::ParseError) as Box<dyn error::Error>)?;
+                        let (value, rest) = Branch::from_msg(bv_rest)?;
+                        cur = rest;
+                        if branches.insert(String::from(bkey), value).is_some() {
+                            return Err(Box::new(CalcifyError::ParseError));
+                        }
+                    }
+                    bytes = cur;
                 }
-                bytes = unparsed;
+                _ => {
+                    let (value, rest) = String::from_msg(v_rest)?;
+                    bytes = rest;
+                    if metadata.insert(String::from(key), value).is_some() {
+                        return Err(Box::new(CalcifyError::ParseError));
+                    }
+                }
             }
         }
-        Ok((Tree{metadata, branches},bytes))
+        if !has_branches {
+            return Err(Box::new(CalcifyError::ParseError));
+        }
+        Ok((Tree { metadata, branches }, bytes))
     }
 }
 
@@ -265,7 +353,19 @@ impl FromFile for Tree{}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ThreeVec;
+    use crate::{Bin, FourMat, FourVec, Point, PointBin, ThreeMat, ThreeVec};
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct CustomObj(f64);
+
+    impl Serializable for CustomObj {
+        fn to_json(&self) -> String {
+            format!("{{\"v\":{}}}", self.0)
+        }
+        fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
+            self.0.to_msg()
+        }
+    }
 
     #[test]
     fn test_tree_write() -> Result<(),Box<dyn error::Error>>{
@@ -329,5 +429,135 @@ mod tests {
         let (mut oo,_) = Tree::from_msg(&pp).unwrap();
         assert_eq!(oo.read_branch("fcol").unwrap(),Collection::from(vec![0.0,0.0]));
         Ok(())
+    }
+
+    #[test]
+    fn test_tree_stamped_all_builtin_roundtrip() -> Result<(), Box<dyn error::Error>> {
+        let s_f64 = Collection::stream(&[-10, 0, 10], &[1.25, 2.5, 3.75]);
+        let s_i64 = Collection::stream(&[i64::MIN, 0, i64::MAX], &[-99, 42, 123456789]);
+        let s_u64 = Collection::stream(&[1, 2], &[10u64, 20u64]);
+        let s_str = Collection::stream(
+            &[100, 200],
+            &[String::from("alpha,beta"), String::from("{\"k\":\"v\"}")],
+        );
+        let s_3v = Collection::stream(
+            &[1, 2],
+            &[ThreeVec::new(1.0, 2.0, 3.0), ThreeVec::new(4.0, 5.0, 6.0)],
+        );
+        let s_3m = Collection::stream(
+            &[1],
+            &[ThreeMat::new(
+                ThreeVec::new(1.0, 0.0, 0.0),
+                ThreeVec::new(0.0, 2.0, 0.0),
+                ThreeVec::new(0.0, 0.0, 3.0),
+            )],
+        );
+        let s_4v = Collection::stream(&[5], &[FourVec::new(10.0, 1.0, 2.0, 3.0)]);
+        let s_4m = Collection::stream(
+            &[6],
+            &[FourMat::new(
+                FourVec::new(1.0, 0.0, 0.0, 0.0),
+                FourVec::new(0.0, 1.0, 0.0, 0.0),
+                FourVec::new(0.0, 0.0, 1.0, 0.0),
+                FourVec::new(0.0, 0.0, 0.0, 1.0),
+            )],
+        );
+        let s_bin = Collection::stream(&[7], &[Bin::new(0.0, 1.0, 5)]);
+        let s_pt = Collection::stream(&[8], &[Point::new(1.5, -2.5)]);
+        let s_pbin = Collection::stream(&[9], &[PointBin::new(0.0, 1.0, 0.0, 1.0, 9)]);
+        let s_empty: Collection<StampedSample<f64>> = Collection::empty();
+        let plain_f64 = Collection::from(vec![9.0, 8.0]);
+
+        let mut ttree = Tree::new("Stamped_Tree");
+        ttree.add_field("Desc", "Stamped and plain branches")?;
+        assert_eq!(ttree.get_field("Name"), Some("Stamped_Tree"));
+        assert_eq!(ttree.get_field("Desc"), Some("Stamped and plain branches"));
+
+        ttree.add_branch("plain_f64", plain_f64.clone(), "f64")?;
+        ttree.add_stamped_branch("s_f64", s_f64.clone(), "f64")?;
+        ttree.add_stamped_branch("s_i64", s_i64.clone(), "i64")?;
+        ttree.add_stamped_branch("s_u64", s_u64.clone(), "u64")?;
+        ttree.add_stamped_branch("s_str", s_str.clone(), "String")?;
+        ttree.add_stamped_branch("s_3v", s_3v.clone(), "ThreeVec")?;
+        ttree.add_stamped_branch("s_3m", s_3m.clone(), "ThreeMat")?;
+        ttree.add_stamped_branch("s_4v", s_4v.clone(), "FourVec")?;
+        ttree.add_stamped_branch("s_4m", s_4m.clone(), "FourMat")?;
+        ttree.add_stamped_branch("s_bin", s_bin.clone(), "Bin")?;
+        ttree.add_stamped_branch("s_pt", s_pt.clone(), "Point")?;
+        ttree.add_stamped_branch("s_pbin", s_pbin.clone(), "PointBin")?;
+        ttree.add_stamped_branch("s_empty", s_empty.clone(), "f64")?;
+
+        ttree.write_msg("./scratch/test_stamped_tree.msg")?;
+        ttree.write_json("./scratch/test_stamped_tree.json")?;
+
+        for mut parsed in [
+            Tree::read_msg("./scratch/test_stamped_tree.msg")?,
+            Tree::read_json("./scratch/test_stamped_tree.json")?,
+        ] {
+            assert_eq!(parsed.get_field("Name"), Some("Stamped_Tree"));
+            assert_eq!(parsed.read_branch::<f64>("plain_f64")?, plain_f64);
+            assert!(parsed.read_stamped_branch::<f64>("plain_f64").is_err());
+            assert_eq!(parsed.read_stamped_branch::<f64>("s_f64")?, s_f64);
+            assert_eq!(parsed.read_branch::<StampedSample<f64>>("s_f64")?, s_f64);
+            assert_eq!(parsed.read_stamped_branch::<i64>("s_i64")?, s_i64);
+            assert_eq!(parsed.read_stamped_branch::<u64>("s_u64")?, s_u64);
+            assert_eq!(parsed.read_stamped_branch::<String>("s_str")?, s_str);
+            assert_eq!(parsed.read_stamped_branch::<ThreeVec>("s_3v")?, s_3v);
+            assert_eq!(parsed.read_stamped_branch::<ThreeMat>("s_3m")?, s_3m);
+            assert_eq!(parsed.read_stamped_branch::<FourVec>("s_4v")?, s_4v);
+            assert_eq!(parsed.read_stamped_branch::<FourMat>("s_4m")?, s_4m);
+            assert_eq!(parsed.read_stamped_branch::<Bin>("s_bin")?, s_bin);
+            assert_eq!(parsed.read_stamped_branch::<Point>("s_pt")?, s_pt);
+            assert_eq!(parsed.read_stamped_branch::<PointBin>("s_pbin")?, s_pbin);
+            assert_eq!(parsed.read_stamped_branch::<f64>("s_empty")?, s_empty);
+        }
+
+        // Empty branches map round-trips cleanly in JSON & MsgPack
+        let empty_tree = Tree::new("Empty");
+        let empty_json = empty_tree.to_json();
+        assert!(Tree::from_json(&empty_json).is_ok());
+        let empty_msg = empty_tree.to_msg()?;
+        assert!(Tree::from_msg(&empty_msg).is_ok());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_tree_stamped_object_branch() -> Result<(), Box<dyn error::Error>> {
+        let mut obj_stream: Collection<StampedSample<CustomObj>> = Collection::empty();
+        obj_stream.push_sample(1, CustomObj(4.5));
+
+        let mut ttree = Tree::new("ObjTree");
+        ttree.add_stamped_branch("objs", obj_stream, "Object")?;
+        let json = ttree.to_json();
+        let msg = ttree.to_msg()?;
+
+        let err_json = Tree::from_json(&json).err().unwrap();
+        assert_eq!(
+            err_json.downcast_ref::<CalcifyError>().map(|e| format!("{}", e)),
+            Some(format!("{}", CalcifyError::ObjectBranchDeserializeError))
+        );
+        let err_msg = Tree::from_msg(&msg).err().unwrap();
+        assert_eq!(
+            err_msg.downcast_ref::<CalcifyError>().map(|e| format!("{}", e)),
+            Some(format!("{}", CalcifyError::ObjectBranchDeserializeError))
+        );
+
+        ttree.write_msg("./scratch/test_stamped_obj_tree.msg")?;
+        let err_file = Tree::read_msg("./scratch/test_stamped_obj_tree.msg").err().unwrap();
+        assert_eq!(
+            err_file.downcast_ref::<CalcifyError>().map(|e| format!("{}", e)),
+            Some(format!("{}", CalcifyError::ObjectBranchDeserializeError))
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_add_branch_rejects_stamped_sample() {
+        let mut ttree = Tree::new("Bad");
+        let stream = Collection::stream(&[1], &[2.0]);
+        let _ = ttree.add_branch("s", stream, "StampedSample");
     }
 }

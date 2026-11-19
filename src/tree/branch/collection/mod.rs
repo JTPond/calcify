@@ -6,15 +6,18 @@ use std::convert::From;
 mod point;
 mod bin;
 mod point_bin;
+mod stamped_sample;
 
 pub use point::Point;
 pub use bin::Bin;
 pub use point_bin::PointBin;
+pub use stamped_sample::StampedSample;
 
 use crate::utils;
 
 use utils::{Serializable, Deserializable};
 use utils::errors::CalcifyError;
+use utils::serializable::split_json_array;
 
 use rmp::encode::*;
 use rmp::decode::*;
@@ -222,18 +225,8 @@ impl<T: Serializable> Serializable for Collection<T> {
 impl<T: Serializable + Deserializable> Deserializable for Collection<T> {
     fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
         let mut out: Self = Collection::empty();
-        let s_iter: String = if s.starts_with("[{") {
-            s.replace("},{","}|{")
-        } else {
-            s.replace(",","|")
-        };
-        for ff in s_iter.trim_matches(|p| p == '[' || p == ']' ).split('|'){
-            if let Ok(f) = T::from_json(ff) {
-                out.push(f);
-            }
-            else {
-                return Err(Box::new(CalcifyError::ParseError));
-            }
+        for elem in split_json_array(s)? {
+            out.push(T::from_json(elem)?);
         }
         Ok(out)
     }
@@ -451,12 +444,200 @@ impl Collection<f64> {
     }
 }
 
+impl<T: Serializable> Collection<StampedSample<T>> {
+    /// Returns a `Collection<StampedSample<T>>` stream by zipping `timestamps` and `values`.
+    ///
+    /// Pairs elements up to the length of the shorter slice, matching `Collection::plot`.
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::{Collection, StampedSample};
+    ///
+    /// let stream = Collection::stream(&[10, 20, 30], &[1.0, 2.0, 3.0]);
+    /// assert_eq!(stream.len(), 3);
+    /// assert_eq!(stream.timestamps(), Collection::from(vec![10, 20, 30]));
+    /// ```
+    pub fn stream(timestamps: &[i64], values: &[T]) -> Collection<StampedSample<T>>
+    where
+        T: Clone,
+    {
+        timestamps
+            .iter()
+            .zip(values.iter())
+            .map(|(t, v)| StampedSample::new(*t, v.clone()))
+            .collect()
+    }
+
+    /// Appends a timestamped sample to the stream.
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::{Collection, StampedSample};
+    ///
+    /// let mut stream: Collection<StampedSample<f64>> = Collection::empty();
+    /// stream.push_sample(100, 1.5);
+    /// assert_eq!(*stream.at(0), StampedSample::new(100, 1.5));
+    /// ```
+    pub fn push_sample(&mut self, timestamp: i64, value: T) {
+        self.vec.push(StampedSample::new(timestamp, value));
+    }
+
+    /// Returns a `Collection<i64>` containing the timestamp of each sample in order.
+    pub fn timestamps(&self) -> Collection<i64> {
+        self.vec.iter().map(|s| s.timestamp).collect()
+    }
+
+    /// Returns a `Collection<T>` containing clones of each sample's value in order.
+    pub fn values(&self) -> Collection<T>
+    where
+        T: Clone,
+    {
+        self.vec.iter().map(|s| s.value.clone()).collect()
+    }
+
+    /// Maps each sample's value while preserving its timestamp.
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::{Collection, StampedSample, ThreeVec};
+    ///
+    /// let stream = Collection::stream(&[1, 2], &[ThreeVec::new(3.0, 4.0, 0.0), ThreeVec::new(0.0, 5.0, 12.0)]);
+    /// let mags = stream.map_values(ThreeVec::r);
+    /// assert_eq!(mags, Collection::stream(&[1, 2], &[5.0, 13.0]));
+    /// ```
+    pub fn map_values<F, Z: Serializable>(&self, mut f: F) -> Collection<StampedSample<Z>>
+    where
+        F: FnMut(&T) -> Z,
+    {
+        self.vec
+            .iter()
+            .map(|s| StampedSample::new(s.timestamp, f(&s.value)))
+            .collect()
+    }
+
+    /// Returns a new stream containing samples whose timestamps fall in `[start, end]` inclusive.
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::{Collection, StampedSample};
+    ///
+    /// let stream = Collection::stream(&[10, 20, 30, 40], &[1.0, 2.0, 3.0, 4.0]);
+    /// let slice = stream.window(20, 30);
+    /// assert_eq!(slice, Collection::stream(&[20, 30], &[2.0, 3.0]));
+    /// ```
+    pub fn window(&self, start: i64, end: i64) -> Collection<StampedSample<T>>
+    where
+        T: Clone,
+    {
+        self.vec
+            .iter()
+            .filter(|s| s.timestamp >= start && s.timestamp <= end)
+            .cloned()
+            .collect()
+    }
+
+    /// Sorts the stream in place by `timestamp` using a stable sort.
+    pub fn sort_by_timestamp(&mut self) {
+        self.vec.sort_by_key(|s| s.timestamp);
+    }
+
+    /// Returns a new stream sorted by `timestamp` using a stable sort.
+    pub fn sorted_by_timestamp(&self) -> Collection<StampedSample<T>>
+    where
+        T: Clone,
+    {
+        let mut out = self.clone();
+        out.sort_by_timestamp();
+        out
+    }
+
+    /// Returns `true` if sample timestamps are non-decreasing (`t[i] <= t[i+1]`).
+    pub fn is_monotonic(&self) -> bool {
+        self.vec.windows(2).all(|w| w[0].timestamp <= w[1].timestamp)
+    }
+
+    /// Returns `Some((min_timestamp, max_timestamp))` across all samples, or `None` if empty.
+    pub fn time_bounds(&self) -> Option<(i64, i64)> {
+        let first = self.vec.first()?.timestamp;
+        let mut min_t = first;
+        let mut max_t = first;
+        for sample in &self.vec[1..] {
+            if sample.timestamp < min_t {
+                min_t = sample.timestamp;
+            }
+            if sample.timestamp > max_t {
+                max_t = sample.timestamp;
+            }
+        }
+        Some((min_t, max_t))
+    }
+
+    /// Returns a `Collection<i64>` of adjacent timestamp differences `t[i+1] - t[i]`.
+    pub fn deltas(&self) -> Collection<i64> {
+        self.vec
+            .windows(2)
+            .map(|w| w[1].timestamp - w[0].timestamp)
+            .collect()
+    }
+}
+
+impl Collection<StampedSample<f64>> {
+    /// Converts the scalar stream into a `Collection<Point>` with `x = timestamp as f64`, `y = value`.
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::{Collection, Point};
+    ///
+    /// let stream = Collection::stream(&[0, 1, 2], &[3.0, 4.0, 5.0]);
+    /// assert_eq!(stream.to_points(), Collection::plot(&[0.0, 1.0, 2.0], &[3.0, 4.0, 5.0]));
+    /// ```
+    pub fn to_points(&self) -> Collection<Point> {
+        self.vec
+            .iter()
+            .map(|s| Point::new(s.timestamp as f64, s.value))
+            .collect()
+    }
+
+    /// Converts the scalar stream into a `Collection<Point>` with `x = (timestamp - origin) as f64`.
+    ///
+    /// Useful for preserving precision when timestamps are large epoch values.
+    ///
+    /// # Example
+    /// ```
+    /// use calcify::{Collection, Point};
+    ///
+    /// let stream = Collection::stream(&[1_700_000_000_000, 1_700_000_000_005], &[1.0, 2.0]);
+    /// assert_eq!(
+    ///     stream.to_points_since(1_700_000_000_000),
+    ///     Collection::plot(&[0.0, 5.0], &[1.0, 2.0])
+    /// );
+    /// ```
+    pub fn to_points_since(&self, origin: i64) -> Collection<Point> {
+        self.vec
+            .iter()
+            .map(|s| Point::new((s.timestamp - origin) as f64, s.value))
+            .collect()
+    }
+
+    /// Computes a 1D `Collection<Bin>` histogram over the stream's values.
+    pub fn hist(&self, num_bins: u64) -> Collection<Bin> {
+        self.values().hist(num_bins)
+    }
+}
+
+impl Collection<StampedSample<Point>> {
+    /// Computes a 2D `Collection<PointBin>` histogram over the stream's `Point` values.
+    pub fn hist(&self, num_bins_x: u64, num_bins_y: u64) -> Collection<PointBin> {
+        self.values().hist(num_bins_x, num_bins_y)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::prelude::*;
     use std::io::BufWriter;
     use std::fs::File;
-    use crate::ThreeVec;
+    use crate::{ThreeMat, ThreeVec};
     use super::*;
 
     #[test]
@@ -497,5 +678,141 @@ mod tests {
             col_3v.push(ThreeVec::random(10.0));
         }
         wr.write_all(col_3v.map(ThreeVec::r).to_json().as_bytes()).unwrap();
+    }
+
+    #[test]
+    fn test_stream_helpers() {
+        // Empty stream
+        let empty: Collection<StampedSample<f64>> = Collection::empty();
+        assert!(empty.is_monotonic());
+        assert_eq!(empty.time_bounds(), None);
+        assert_eq!(empty.deltas(), Collection::<i64>::empty());
+        assert_eq!(empty.window(-10, 10), Collection::empty());
+        assert_eq!(empty.timestamps(), Collection::<i64>::empty());
+        assert_eq!(empty.values(), Collection::<f64>::empty());
+
+        // Single-element stream
+        let mut single: Collection<StampedSample<f64>> = Collection::empty();
+        single.push_sample(-5, 42.0);
+        assert!(single.is_monotonic());
+        assert_eq!(single.time_bounds(), Some((-5, -5)));
+        assert_eq!(single.deltas(), Collection::<i64>::empty());
+
+        // Unsorted with equal and negative timestamps
+        let s = Collection::from(vec![
+            StampedSample::new(20, "b".to_string()),
+            StampedSample::new(-10, "neg".to_string()),
+            StampedSample::new(10, "first_10".to_string()),
+            StampedSample::new(10, "second_10".to_string()),
+            StampedSample::new(30, "c".to_string()),
+        ]);
+        assert!(!s.is_monotonic());
+        assert_eq!(s.time_bounds(), Some((-10, 30)));
+        assert_eq!(s.deltas(), Collection::from(vec![-30, 20, 0, 20]));
+        assert_eq!(
+            s.window(10, 20),
+            Collection::from(vec![
+                StampedSample::new(20, "b".to_string()),
+                StampedSample::new(10, "first_10".to_string()),
+                StampedSample::new(10, "second_10".to_string()),
+            ])
+        );
+
+        let sorted = s.sorted_by_timestamp();
+        assert!(sorted.is_monotonic());
+        assert_eq!(
+            sorted.timestamps(),
+            Collection::from(vec![-10, 10, 10, 20, 30])
+        );
+        // Stable sort preserves order of equal timestamps
+        assert_eq!(
+            sorted.values(),
+            Collection::from(vec![
+                "neg".to_string(),
+                "first_10".to_string(),
+                "second_10".to_string(),
+                "b".to_string(),
+                "c".to_string(),
+            ])
+        );
+        assert_eq!(sorted.deltas(), Collection::from(vec![20, 0, 10, 10]));
+
+        let mut in_place = s.clone();
+        in_place.sort_by_timestamp();
+        assert_eq!(in_place, sorted);
+
+        // Scalar and Point stream helpers
+        let scalars = Collection::stream(&[1_700_000_000_000, 1_700_000_000_005, 1_700_000_000_010], &[1.0, 2.0, 3.0]);
+        assert_eq!(
+            scalars.to_points_since(1_700_000_000_000),
+            Collection::plot(&[0.0, 5.0, 10.0], &[1.0, 2.0, 3.0])
+        );
+        assert_eq!(
+            Collection::stream(&[1, 2], &[4.0, 5.0]).to_points(),
+            Collection::plot(&[1.0, 2.0], &[4.0, 5.0])
+        );
+        let h1 = scalars.hist(2);
+        assert_eq!(h1.vec.iter().map(|b| b.count).sum::<u64>(), 3);
+
+        let pts = Collection::stream(
+            &[1, 2, 3],
+            &[Point::new(0.0, 0.0), Point::new(1.0, 1.0), Point::new(2.0, 2.0)],
+        );
+        let h2 = pts.hist(2, 2);
+        assert_eq!(h2.vec.iter().map(|b| b.count).sum::<u64>(), 3);
+
+        // map_values with Vec length mismatch on stream()
+        let clipped = Collection::stream(&[1, 2, 3], &[10.0, 20.0]);
+        assert_eq!(clipped.len(), 2);
+        let scaled = clipped.map_values(|v| v * 2.0);
+        assert_eq!(scaled, Collection::stream(&[1, 2], &[20.0, 40.0]));
+    }
+
+    #[test]
+    fn test_collection_stamped_roundtrip() {
+        let empty: Collection<StampedSample<f64>> = Collection::empty();
+        let ej = empty.to_json();
+        assert_eq!(ej, "[]");
+        assert_eq!(Collection::<StampedSample<f64>>::from_json(&ej).unwrap(), empty);
+        let em = empty.to_msg().unwrap();
+        let (edm, erest) = Collection::<StampedSample<f64>>::from_msg(&em).unwrap();
+        assert_eq!(edm, empty);
+        assert!(erest.is_empty());
+
+        let mats = Collection::from(vec![
+            StampedSample::new(
+                -5,
+                ThreeMat::new(
+                    ThreeVec::new(1.0, 2.0, 3.0),
+                    ThreeVec::new(4.0, 5.0, 6.0),
+                    ThreeVec::new(7.0, 8.0, 9.0),
+                ),
+            ),
+            StampedSample::new(
+                10,
+                ThreeMat::new(
+                    ThreeVec::new(9.0, 8.0, 7.0),
+                    ThreeVec::new(6.0, 5.0, 4.0),
+                    ThreeVec::new(3.0, 2.0, 1.0),
+                ),
+            ),
+        ]);
+        let mj = mats.to_json();
+        assert_eq!(Collection::<StampedSample<ThreeMat>>::from_json(&mj).unwrap(), mats);
+        let mm = mats.to_msg().unwrap();
+        let (mdm, mrest) = Collection::<StampedSample<ThreeMat>>::from_msg(&mm).unwrap();
+        assert_eq!(mdm, mats);
+        assert!(mrest.is_empty());
+
+        let strs = Collection::stream(
+            &[1, 2],
+            &[String::from("a,b,{c}"), String::from("d\"e\\f")],
+        );
+        let sj = strs.to_json();
+        assert_eq!(Collection::<StampedSample<String>>::from_json(&sj).unwrap(), strs);
+        let sm = strs.to_msg().unwrap();
+        let (sdm, srest) = Collection::<StampedSample<String>>::from_msg(&sm).unwrap();
+        assert_eq!(sdm, strs);
+        assert!(srest.is_empty());
     }
 }
