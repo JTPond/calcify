@@ -1,23 +1,26 @@
+use std::error;
+use std::fmt;
 use std::ops::Add;
 use std::ops::AddAssign;
-use std::ops::Sub;
-use std::ops::SubAssign;
 use std::ops::Mul;
 use std::ops::Neg;
-use std::fmt;
-use std::error;
+use std::ops::Sub;
+use std::ops::SubAssign;
 
 /// Three Vector Module
 mod three_vec;
 pub use three_vec::ThreeVec;
-pub use three_vec::{radians_between, degrees_between};
+pub use three_vec::{degrees_between, radians_between};
 
 use crate::utils;
-use utils::{Serializable, Deserializable};
 use utils::errors::CalcifyError;
+use utils::{Deserializable, Serializable};
 
-use rmp::encode::*;
 use rmp::decode::*;
+use rmp::encode::*;
+use serde::de::{self, Deserializer, MapAccess, Visitor};
+use serde::ser::{SerializeStruct, Serializer};
+use serde::{Deserialize, Serialize};
 
 /// Three Matrix
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -84,6 +87,7 @@ impl ThreeMat {
     /// use calcify::ThreeMat;
     /// let mat3 = ThreeMat::random(10.0);
     /// ```
+    #[cfg(feature = "rand")]
     pub fn random(max: f64) -> ThreeMat {
         ThreeMat {
             r0: ThreeVec::random(max),
@@ -239,15 +243,101 @@ impl fmt::Display for ThreeMat {
     }
 }
 
+impl Serialize for ThreeMat {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut state = serializer.serialize_struct("ThreeMat", 3)?;
+        state.serialize_field("r0", &self.r0)?;
+        state.serialize_field("r1", &self.r1)?;
+        state.serialize_field("r2", &self.r2)?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for ThreeMat {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        enum Field {
+            R0,
+            R1,
+            R2,
+        }
+
+        impl<'de> Deserialize<'de> for Field {
+            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Field, D::Error> {
+                struct FieldVisitor;
+
+                impl<'de> Visitor<'de> for FieldVisitor {
+                    type Value = Field;
+
+                    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                        f.write_str("`r0`, `r1`, or `r2`")
+                    }
+
+                    fn visit_str<E: de::Error>(self, value: &str) -> Result<Field, E> {
+                        match value {
+                            "r0" => Ok(Field::R0),
+                            "r1" => Ok(Field::R1),
+                            "r2" => Ok(Field::R2),
+                            _ => Err(de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+
+                deserializer.deserialize_identifier(FieldVisitor)
+            }
+        }
+
+        struct ThreeMatVisitor;
+
+        impl<'de> Visitor<'de> for ThreeMatVisitor {
+            type Value = ThreeMat;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("struct ThreeMat")
+            }
+
+            fn visit_map<V: MapAccess<'de>>(self, mut map: V) -> Result<ThreeMat, V::Error> {
+                let mut r0: Option<ThreeVec> = None;
+                let mut r1: Option<ThreeVec> = None;
+                let mut r2: Option<ThreeVec> = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::R0 => {
+                            if r0.is_some() {
+                                return Err(de::Error::duplicate_field("r0"));
+                            }
+                            r0 = Some(map.next_value()?);
+                        }
+                        Field::R1 => {
+                            if r1.is_some() {
+                                return Err(de::Error::duplicate_field("r1"));
+                            }
+                            r1 = Some(map.next_value()?);
+                        }
+                        Field::R2 => {
+                            if r2.is_some() {
+                                return Err(de::Error::duplicate_field("r2"));
+                            }
+                            r2 = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let r0 = r0.ok_or_else(|| de::Error::missing_field("r0"))?;
+                let r1 = r1.ok_or_else(|| de::Error::missing_field("r1"))?;
+                let r2 = r2.ok_or_else(|| de::Error::missing_field("r2"))?;
+                Ok(ThreeMat { r0, r1, r2 })
+            }
+        }
+
+        const FIELDS: &[&str] = &["r0", "r1", "r2"];
+        deserializer.deserialize_struct("ThreeMat", FIELDS, ThreeMatVisitor)
+    }
+}
+
 impl Serializable for ThreeMat {
     fn to_json(&self) -> String {
-        format!("{{\"r0\":{},\"r1\":{},\"r2\":{}}}",
-            self.r0().to_json(),
-            self.r1().to_json(),
-            self.r2().to_json()
-        )
+        serde_json::to_string(self).unwrap()
     }
-    fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
+    fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
         let mut buf = Vec::new();
         write_array_len(&mut buf, 3)?;
         buf.append(&mut self.r0().to_msg()?);
@@ -258,34 +348,23 @@ impl Serializable for ThreeMat {
 }
 
 impl Deserializable for ThreeMat {
-
     fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
-        let mut r0: ThreeVec = ThreeVec::new(f64::NAN,f64::NAN,f64::NAN);
-        let mut r1: ThreeVec = ThreeVec::new(f64::NAN,f64::NAN,f64::NAN);
-        let mut r2: ThreeVec = ThreeVec::new(f64::NAN,f64::NAN,f64::NAN);
-        for dim in s.replace("}}","|}").replace("},","}|").replace(":{",":!{").trim_matches(|p| p == '{' || p == '}' ).split_terminator('|') {
-            let n_v: Vec<&str> = dim.split(":!").collect();
-            match n_v[0] {
-                "\"r0\"" => r0 = ThreeVec::from_json(n_v[1])?,
-                "\"r1\"" => r1 = ThreeVec::from_json(n_v[1])?,
-                "\"r2\"" => r2 = ThreeVec::from_json(n_v[1])?,
-                _ => return Err(Box::new(CalcifyError::ParseError)),
-            }
-        }
-        Ok(ThreeMat{r0,r1,r2})
+        Ok(serde_json::from_str(s)?)
     }
 
-    fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
-        if let Ok(3) = read_array_len(&mut bytes){
-            let mut x: [ThreeVec;3] = [ThreeVec::new(f64::NAN,f64::NAN,f64::NAN);3];
+    fn from_msg(mut bytes: &[u8]) -> Result<(Self, &[u8]), Box<dyn error::Error>> {
+        if let Ok(3) = read_array_len(&mut bytes) {
+            let mut x: [ThreeVec; 3] = [ThreeVec::new(f64::NAN, f64::NAN, f64::NAN); 3];
             for item in &mut x {
-                let (vec,rest) = ThreeVec::from_msg(bytes)?;
+                let (vec, rest) = ThreeVec::from_msg(bytes)?;
                 *item = vec;
                 bytes = rest;
             }
-            Ok((ThreeMat::from(&x),bytes))
+            Ok((ThreeMat::from(&x), bytes))
         } else {
-            Err(Box::new(CalcifyError::ParseError))
+            Err(Box::new(CalcifyError::ParseError(String::from(
+                "invalid MessagePack ThreeMat",
+            ))))
         }
     }
 }
@@ -591,11 +670,23 @@ mod tests {
 
     #[test]
     fn test_parse() {
-        let xx = ThreeMat::new(ThreeVec::new(1.0,1.0,1.0),
-                                    ThreeVec::new(1.0,1.0,1.0),
-                                    ThreeVec::new(1.0,1.0,1.0));
+        let xx = ThreeMat::new(
+            ThreeVec::new(1.0, 2.0, 3.0),
+            ThreeVec::new(4.0, 5.0, 6.0),
+            ThreeVec::new(7.0, 8.0, 9.0),
+        );
         let pp = xx.to_json();
-        assert_eq!(ThreeMat::from_json(&pp).unwrap(),xx);
+        assert_eq!(ThreeMat::from_json(&pp).unwrap(), xx);
+
+        let reordered = r#" { "r2" : {"x2":9,"x0":7,"x1":8} , "r0" : {"x0":1,"x1":2,"x2":3} , "r1" : {"x0":4,"x1":5,"x2":6} } "#;
+        assert_eq!(ThreeMat::from_json(reordered).unwrap(), xx);
+
+        let rt: ThreeMat = serde_json::from_str(&serde_json::to_string(&xx).unwrap()).unwrap();
+        assert_eq!(rt, xx);
+
+        assert!(ThreeMat::from_json(r#"{"r0":{"x0":1,"x1":2,"x2":3}}"#).is_err());
+        assert!(ThreeMat::from_json(r#"{"r0":{"x0":1,"x1":2,"x2":3},"r1":{"x0":4,"x1":5,"x2":6},"r2":{"x0":7,"x1":8,"x2":9},"extra":1}"#).is_err());
+        assert!(ThreeMat::from_json(r#"{"r0":{"x0":1,"x1":2,"x2":3},"r0":{"x0":1,"x1":2,"x2":3},"r1":{"x0":4,"x1":5,"x2":6},"r2":{"x0":7,"x1":8,"x2":9}}"#).is_err());
     }
 
     #[test]

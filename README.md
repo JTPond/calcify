@@ -14,8 +14,6 @@ Check it out [here!](https://github.com/JTPond/ICalcify "ICalcify GitHub")
 ```rust
 use std::error;
 
-extern crate calcify;
-
 use calcify::Tree;
 use calcify::FeedTree;
 use calcify::Collection;
@@ -28,8 +26,8 @@ mod dummy_experiment_lib;
 use dummy_experiment_lib::Projectile;
 use dummy_experiment_lib::Lab;
 
-fn main() -> Result<(),Box<dyn error::Error>> {
-    let mut ftree = FeedTree::<Projectile>::new("Dummy_States","Object");
+fn main() -> Result<(), Box<dyn error::Error>> {
+    let mut ftree = FeedTree::<Projectile>::new_object("Dummy_States");
     let mut ttree = Tree::new("Dummy_Data");
 
     ftree.add_field("Desc","A FeedTree of states for a simulation that does not exist.")?;
@@ -44,8 +42,8 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                                           .cut(|p| p.r() <= 1.0);
 
     ftree.add_feed("init_state", init_state)?;
-    ttree.add_branch("init_hist", init_hist, "Bin")?;
-    ttree.add_branch("init_spread", init_spread, "Point")?;
+    ttree.add_branch("init_hist", init_hist)?;
+    ttree.add_branch("init_spread", init_spread)?;
 
     dummy_lab.run(1000);
 
@@ -56,8 +54,8 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                                          .cut(|p| p.r() <= 1.0);
 
     ftree.add_feed("fin_state", fin_state)?;
-    ttree.add_branch("fin_hist", fin_hist, "Bin")?;
-    ttree.add_branch("fin_spread", fin_spread, "Point")?;
+    ttree.add_branch("fin_hist", fin_hist)?;
+    ttree.add_branch("fin_spread", fin_spread)?;
 
     ftree.write_msg("dummy_states.msg")?;
     ttree.write_msg("dummy_data.msg")?;
@@ -97,15 +95,15 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     let early = events.window(1_700_000_000_000, 1_700_000_000_300);
     let inter_arrival_ms = events.deltas();
 
-    // Save into a Tree using add_stamped_branch
+    // Save into a Tree using typed add_stamped_branch / add_branch
     let mut tree = Tree::new("detector_run");
-    tree.add_stamped_branch("events", events.clone(), "f64")?;
-    tree.add_stamped_branch("early_events", early, "f64")?;
-    tree.add_branch("inter_arrival_ms", inter_arrival_ms, "i64")?;
+    tree.add_stamped_branch("events", events.clone())?;
+    tree.add_stamped_branch("early_events", early)?;
+    tree.add_branch("inter_arrival_ms", inter_arrival_ms)?;
     tree.write_msg("detector_run.msg")?;
 
     // Or append incrementally into a stamped FeedTree
-    let mut feed: FeedTree<StampedSample<f64>> = FeedTree::new_stamped("live_feed", "f64");
+    let mut feed: FeedTree<StampedSample<f64>> = FeedTree::new_stamped("live_feed");
     feed.add_stream("channel_a")?;
     feed.write_samples("channel_a", events)?;
     feed.write_sample("channel_a", 1_700_000_000_900, 4.95)?;
@@ -120,11 +118,12 @@ fn main() -> Result<(), Box<dyn error::Error>> {
 * `cargo run --example universe_in_a_box --release` — Many-body gravitational particle simulation writing `Tree` and `FeedTree` snapshots.
 * `cargo run --example decay_signals` — Generates 10,000 `StampedSample<f64>` detector energy events over 24 hours with a decaying event rate and a Gaussian energy distribution, ready to histogram and fit in ICalcify.
 
-## Notes about File IO
+## Notes about File IO and Cargo Features
 
-* Even though json is supported for both reading and writing, it's not as efficiently implemented and may lead to slowdowns when reading large files. Consider only using it for debugging, so that you can read the results of tests, otherwise use msg.
-
-* Feel free to use Serde when implementing the Serialization traits for your types
+* JSON serialization and deserialization are powered by `serde_json` (`serde` without proc-macro `derive`), and Calcify's built-in data types plus `Collection` and `FeedTree` also implement `serde::Serialize` and `serde::Deserialize`. MessagePack (`rmp`) remains available for compact binary files.
+* `ToFile` and `FromFile` accept any `impl AsRef<Path>` (`&str`, `&Path`, `PathBuf`).
+* Random helpers (`ThreeVec::random`, `ThreeMat::random`, `Point::random`) are gated behind the default-enabled `rand` feature (`rand = "0.10"`). Disable it with `default-features = false` if you do not need RNG dependencies.
+* Feel free to use `serde` when implementing the `Serializable` / `Deserializable` traits for your custom `"Object"` types.
 
 ### Trees
 

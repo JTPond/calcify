@@ -27,7 +27,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
         static ref DETAILS: String = format!("Universe Range: {}, Number of Particles: {}, Delta T: {}, Time steps: {}, Total Time: {}",
                                                 *UNIVERSE_RANGE, *UNIVERSE_NUM, *UNIVERSE_DT, *RUN_T, (*RUN_T as f64)*(*UNIVERSE_DT));
     }
-    let mut ftree = FeedTree::<Particle>::new("states","Object");
+    let mut ftree = FeedTree::<Particle>::new_object("states");
     let mut ttree = Tree::new("data");
 
     let mut universe = Universe::cloud(*UNIVERSE_RANGE,*UNIVERSE_NUM,*UNIVERSE_DT);
@@ -54,9 +54,9 @@ fn main() -> Result<(),Box<dyn error::Error>> {
 
     ftree.add_feed("init_state", init_state)?;
 
-    ttree.add_branch("init_hist", init_hist, "Bin")?;
-    ttree.add_branch("init_spread", init_spread, "Point")?;
-    ttree.add_branch("init_heat", init_heat, "PointBin")?;
+    ttree.add_branch("init_hist", init_hist)?;
+    ttree.add_branch("init_spread", init_spread)?;
+    ttree.add_branch("init_heat", init_heat)?;
 
     universe.run(*RUN_T);
 
@@ -64,7 +64,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     let mid1_hist: Collection<Bin> = mid1_state.map(|x| {x.r().r()}).hist(50);
 
     ftree.add_feed("mid1_state", mid1_state)?;
-    ttree.add_branch("mid1_hist", mid1_hist, "Bin")?;
+    ttree.add_branch("mid1_hist", mid1_hist)?;
 
     universe.run(*RUN_T);
 
@@ -72,7 +72,7 @@ fn main() -> Result<(),Box<dyn error::Error>> {
     let mid2_hist: Collection<Bin> = mid2_state.map(|x| {x.r().r()}).hist(50);
 
     ftree.add_feed("mid2_state", mid2_state)?;
-    ttree.add_branch("mid2_hist", mid2_hist, "Bin")?;
+    ttree.add_branch("mid2_hist", mid2_hist)?;
 
     universe.run(*RUN_T);
 
@@ -87,9 +87,9 @@ fn main() -> Result<(),Box<dyn error::Error>> {
                                                             .hist(50,50);
 
     ftree.add_feed("fin_state", fin_state)?;
-    ttree.add_branch("fin_hist", fin_hist, "Bin")?;
-    ttree.add_branch("fin_spread", fin_spread, "Point")?;
-    ttree.add_branch("fin_heat", fin_heat, "PointBin")?;
+    ttree.add_branch("fin_hist", fin_hist)?;
+    ttree.add_branch("fin_spread", fin_spread)?;
+    ttree.add_branch("fin_heat", fin_heat)?;
 
     ftree.write_msg("./scratch/universe_states.msg")?;
     ttree.write_msg("./scratch/universe_data.msg")?;

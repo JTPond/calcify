@@ -1,22 +1,25 @@
+use std::error;
+use std::fmt;
+use std::iter;
 use std::ops::Add;
 use std::ops::AddAssign;
-use std::ops::Sub;
-use std::ops::SubAssign;
 use std::ops::Mul;
 use std::ops::Neg;
-use std::iter;
-use std::fmt;
-use std::error;
+use std::ops::Sub;
+use std::ops::SubAssign;
 
-use rmp::encode::*;
 use rmp::decode::*;
+use rmp::encode::*;
+use serde::de::{self, Deserializer, MapAccess, Visitor};
+use serde::ser::{SerializeStruct, Serializer};
+use serde::{Deserialize, Serialize};
 
-use rand::thread_rng;
-use rand::distributions::{Distribution, Uniform};
+#[cfg(feature = "rand")]
+use rand::distr::{Distribution, Uniform};
 
 use crate::utils;
-use utils::{Serializable, Deserializable};
 use utils::errors::CalcifyError;
+use utils::{Deserializable, Serializable};
 
 /// Point, or Two Vector, depending on your perspective.
 /// A plot is a Collection of Points
@@ -35,10 +38,7 @@ impl Point {
     /// * `y` - prim@f64 Dependent Variable
     ///
     pub fn new(x: f64, y: f64) -> Point {
-        Point {
-            x,
-            y,
-        }
+        Point { x, y }
     }
 
     /// Returns a new Point from a slice
@@ -57,7 +57,6 @@ impl Point {
     ///
     /// * `slice` length < 2
     pub fn from(slice: &[f64]) -> Point {
-
         Point {
             x: slice[0],
             y: slice[1],
@@ -75,12 +74,13 @@ impl Point {
     /// use calcify::Point;
     /// let vec2 = Point::random(10.0);
     /// ```
+    #[cfg(feature = "rand")]
     pub fn random(max: f64) -> Point {
-        let between = Uniform::new_inclusive(-1.0f64,1.0f64);
-        let mut rng = thread_rng();
+        let between = Uniform::new_inclusive(-1.0_f64, 1.0_f64).unwrap();
+        let mut rng = rand::rng();
         Point {
-            x: between.sample(&mut rng)*max,
-            y: between.sample(&mut rng)*max,
+            x: between.sample(&mut rng) * max,
+            y: between.sample(&mut rng) * max,
         }
     }
 
@@ -93,16 +93,95 @@ impl Point {
     /// assert_eq!(vec2.r(),1.0);
     /// ```
     pub fn r(&self) -> f64 {
-        (*self**self).sqrt()
+        (*self * *self).sqrt()
+    }
+}
+
+impl Serialize for Point {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut state = serializer.serialize_struct("Point", 2)?;
+        state.serialize_field("x", &self.x)?;
+        state.serialize_field("y", &self.y)?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Point {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        enum Field {
+            X,
+            Y,
+        }
+
+        impl<'de> Deserialize<'de> for Field {
+            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Field, D::Error> {
+                struct FieldVisitor;
+
+                impl<'de> Visitor<'de> for FieldVisitor {
+                    type Value = Field;
+
+                    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                        f.write_str("`x` or `y`")
+                    }
+
+                    fn visit_str<E: de::Error>(self, value: &str) -> Result<Field, E> {
+                        match value {
+                            "x" => Ok(Field::X),
+                            "y" => Ok(Field::Y),
+                            _ => Err(de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+
+                deserializer.deserialize_identifier(FieldVisitor)
+            }
+        }
+
+        struct PointVisitor;
+
+        impl<'de> Visitor<'de> for PointVisitor {
+            type Value = Point;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("struct Point")
+            }
+
+            fn visit_map<V: MapAccess<'de>>(self, mut map: V) -> Result<Point, V::Error> {
+                let mut x: Option<f64> = None;
+                let mut y: Option<f64> = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::X => {
+                            if x.is_some() {
+                                return Err(de::Error::duplicate_field("x"));
+                            }
+                            x = Some(map.next_value()?);
+                        }
+                        Field::Y => {
+                            if y.is_some() {
+                                return Err(de::Error::duplicate_field("y"));
+                            }
+                            y = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let x = x.ok_or_else(|| de::Error::missing_field("x"))?;
+                let y = y.ok_or_else(|| de::Error::missing_field("y"))?;
+                Ok(Point { x, y })
+            }
+        }
+
+        const FIELDS: &[&str] = &["x", "y"];
+        deserializer.deserialize_struct("Point", FIELDS, PointVisitor)
     }
 }
 
 impl Serializable for Point {
     fn to_json(&self) -> String {
-        format!("{{\"x\":{},\"y\":{}}}", self.x, self.y)
+        serde_json::to_string(self).unwrap()
     }
 
-    fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
+    fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
         let mut buf = Vec::with_capacity(3);
         write_array_len(&mut buf, 2)?;
         write_f64(&mut buf, self.x)?;
@@ -112,30 +191,21 @@ impl Serializable for Point {
 }
 
 impl Deserializable for Point {
-
     fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
-        let mut x: f64 = f64::NAN;
-        let mut y: f64 = f64::NAN;
-        for dim in s.trim_matches(|p| p == '{' || p == '}' ).split(',') {
-            let n_v: Vec<&str> = dim.split(':').collect();
-            match n_v[0] {
-                "\"x\"" => x = n_v[1].parse::<f64>()?,
-                "\"y\"" => y = n_v[1].parse::<f64>()?,
-                _ => return Err(Box::new(CalcifyError::ParseError)),
-            }
-        }
-        Ok(Point{x,y})
+        Ok(serde_json::from_str(s)?)
     }
 
-    fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
-        if let Ok(2) = read_array_len(&mut bytes){
-            let mut x: [f64;2] = [f64::NAN;2];
+    fn from_msg(mut bytes: &[u8]) -> Result<(Self, &[u8]), Box<dyn error::Error>> {
+        if let Ok(2) = read_array_len(&mut bytes) {
+            let mut x: [f64; 2] = [f64::NAN; 2];
             for item in &mut x {
                 *item = read_f64(&mut bytes)?;
             }
-            Ok((Point::from(&x),bytes))
+            Ok((Point::from(&x), bytes))
         } else {
-            Err(Box::new(CalcifyError::ParseError))
+            Err(Box::new(CalcifyError::ParseError(String::from(
+                "invalid MessagePack Point",
+            ))))
         }
     }
 }
@@ -341,9 +411,26 @@ mod tests {
 
     #[test]
     fn test_parse() {
-        let xx = Point::new(1.0,1.0);
+        let xx = Point::new(1.0, 2.5);
         let pp = xx.to_json();
-        assert_eq!(Point::from_json(&pp).unwrap(),xx);
+        assert_eq!(Point::from_json(&pp).unwrap(), xx);
+        assert_eq!(
+            Point::from_json(r#" { "y" : 2.5 , "x" : 1.0 } "#).unwrap(),
+            xx
+        );
+        let rt: Point = serde_json::from_str(&serde_json::to_string(&xx).unwrap()).unwrap();
+        assert_eq!(rt, xx);
+
+        assert_eq!(Point::new(f64::NAN, 1.0).to_json(), r#"{"x":null,"y":1.0}"#);
+        assert_eq!(
+            Point::new(f64::INFINITY, f64::NEG_INFINITY).to_json(),
+            r#"{"x":null,"y":null}"#
+        );
+
+        assert!(Point::from_json(r#"{"x":1.0}"#).is_err());
+        assert!(Point::from_json(r#"{"x":1.0,"y":2.0,"z":3.0}"#).is_err());
+        assert!(Point::from_json(r#"{"x":1.0,"x":2.0,"y":3.0}"#).is_err());
+        assert!(Point::from_json(r#"{"x":null,"y":1.0}"#).is_err());
     }
 
     #[test]

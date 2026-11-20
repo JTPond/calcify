@@ -1,41 +1,50 @@
 use std::error;
 use std::fmt;
 
-/// Enum of built in Error types
-#[derive(Debug,Clone)]
+/// Enum of built-in Error types
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CalcifyError {
     LightSpeedError,
-    KeyError,
-    ParseError,
+    KeyAlreadyExists(String),
+    MissingKey(String),
+    InvalidSubtype(String),
+    SubtypeMismatch { expected: String, found: String },
+    ParseError(String),
     LengthError,
     ObjectBranchDeserializeError,
 }
 
 impl fmt::Display for CalcifyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            CalcifyError::LightSpeedError => write!(f,"Velocity greater than calcify::C_LIGHT."),
-            CalcifyError::KeyError => write!(f,"Invalid Key"),
-            CalcifyError::ParseError => write!(f,"Error on parse in Deserializable."),
-            CalcifyError::LengthError => write!(f,"Invalid slice length"),
-            CalcifyError::ObjectBranchDeserializeError => write!(f,"Attempted to deserialize Object Branch."),
+        match self {
+            CalcifyError::LightSpeedError => {
+                write!(f, "Velocity greater than calcify::C_LIGHT.")
+            }
+            CalcifyError::KeyAlreadyExists(key) => {
+                write!(f, "Key '{}' already exists.", key)
+            }
+            CalcifyError::MissingKey(key) => {
+                write!(f, "Key '{}' not found.", key)
+            }
+            CalcifyError::InvalidSubtype(subtype) => {
+                write!(f, "Invalid subtype '{}'.", subtype)
+            }
+            CalcifyError::SubtypeMismatch { expected, found } => {
+                write!(
+                    f,
+                    "Subtype mismatch: expected '{}', found '{}'.",
+                    expected, found
+                )
+            }
+            CalcifyError::ParseError(detail) => {
+                write!(f, "Error on parse in Deserializable: {}", detail)
+            }
+            CalcifyError::LengthError => write!(f, "Invalid slice length."),
+            CalcifyError::ObjectBranchDeserializeError => {
+                write!(f, "Attempted to deserialize Object Branch.")
+            }
         }
     }
 }
 
-impl error::Error for CalcifyError {
-    fn description(&self) -> &str {
-        match *self {
-            CalcifyError::LightSpeedError => "Cannot have a velocity greater than calcify::C_LIGHT",
-            CalcifyError::KeyError => "Convert HashMap Option behavior to Err on bad keys",
-            CalcifyError::ParseError => "Probably a formatting error when the data was serialized, or there is a type mismatch.",
-            CalcifyError::LengthError => "Length of slice must match Vector length",
-            CalcifyError::ObjectBranchDeserializeError => "Cannot deserialize Object Branch.",
-        }
-    }
-
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        // Generic error, underlying cause isn't tracked.
-        None
-    }
-}
+impl error::Error for CalcifyError {}

@@ -1,23 +1,31 @@
-use std::marker::Sized;
+use std::collections::HashSet;
 use std::error;
+use std::fmt;
+use std::marker::Sized;
 
-use rmp::Marker;
-use rmp::encode::*;
 use rmp::decode::*;
+use rmp::encode::*;
+use rmp::Marker;
+use serde::de::{MapAccess, Visitor};
+use serde::Deserializer;
+use serde_json::value::RawValue;
 
 use crate::utils::errors::CalcifyError;
 /// Serialization trait which all types you intend to put in a Tree need to implement.
 pub trait Serializable {
-    /// Return object intensive json string
+    /// Return object intensive json string.
     /// # I.E.
     /// `FourVec -> {"x0":1.0,"x1":0.0,"x2":0.0,"x3":0.0}`
+    ///
+    /// Note: Non-finite `f64` values (`NaN`, `inf`, `-inf`) serialize as JSON `null`
+    /// via `serde_json`, which `f64::from_json` rejects on deserialization.
     fn to_json(&self) -> String;
     /// Return Result wrapped Vec<u8> in MsgPack
     /// Format is *not* like to_json it is array intensive not object
     ///
     /// #Errors
     /// * The rmp library returns `ValueWriteError` on write errors
-    fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> ;
+    fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError>;
 }
 /// Deserialization trait which all types you intend to get out of a Tree need to implement.
 /// Really only designed to work with data that was serialized with the Calcify::Serializable trait
@@ -25,18 +33,20 @@ pub trait Serializable {
 pub trait Deserializable {
     /// Return Self from string
     fn from_json(string: &str) -> Result<Self, Box<dyn error::Error>>
-        where Self: Sized;
+    where
+        Self: Sized;
     /// Return a tuple of Self and a &[u8] of remaining unparsed bytes from a byte array
-    fn from_msg(bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>>
-        where Self: Sized;
+    fn from_msg(bytes: &[u8]) -> Result<(Self, &[u8]), Box<dyn error::Error>>
+    where
+        Self: Sized;
 }
 
 impl Serializable for u64 {
     fn to_json(&self) -> String {
-        format!("{}",self)
+        serde_json::to_string(self).unwrap()
     }
 
-    fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
+    fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
         let mut buf = Vec::new();
         write_uint(&mut buf, *self)?;
         Ok(buf)
@@ -45,16 +55,16 @@ impl Serializable for u64 {
 
 impl Deserializable for u64 {
     fn from_json(string: &str) -> Result<Self, Box<dyn error::Error>> {
-        string.trim().parse::<u64>().map_err(|e| e.into())
+        Ok(serde_json::from_str(string)?)
     }
-    fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
-        Ok((read_int(&mut bytes)?,bytes))
+    fn from_msg(mut bytes: &[u8]) -> Result<(Self, &[u8]), Box<dyn error::Error>> {
+        Ok((read_int(&mut bytes)?, bytes))
     }
 }
 
 impl Serializable for i64 {
     fn to_json(&self) -> String {
-        format!("{}", self)
+        serde_json::to_string(self).unwrap()
     }
 
     fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
@@ -66,7 +76,7 @@ impl Serializable for i64 {
 
 impl Deserializable for i64 {
     fn from_json(string: &str) -> Result<Self, Box<dyn error::Error>> {
-        string.trim().parse::<i64>().map_err(|e| e.into())
+        Ok(serde_json::from_str(string)?)
     }
     fn from_msg(mut bytes: &[u8]) -> Result<(Self, &[u8]), Box<dyn error::Error>> {
         Ok((read_int(&mut bytes)?, bytes))
@@ -75,9 +85,9 @@ impl Deserializable for i64 {
 
 impl Serializable for f64 {
     fn to_json(&self) -> String {
-        format!("{}",self)
+        serde_json::to_string(self).unwrap()
     }
-    fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
+    fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
         let mut buf = Vec::new();
         write_f64(&mut buf, *self)?;
         Ok(buf)
@@ -86,218 +96,58 @@ impl Serializable for f64 {
 
 impl Deserializable for f64 {
     fn from_json(string: &str) -> Result<Self, Box<dyn error::Error>> {
-        string.trim().parse::<f64>().map_err(|e| e.into())
+        Ok(serde_json::from_str(string)?)
     }
-    fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
-        Ok((read_f64(&mut bytes)?,bytes))
+    fn from_msg(mut bytes: &[u8]) -> Result<(Self, &[u8]), Box<dyn error::Error>> {
+        Ok((read_f64(&mut bytes)?, bytes))
     }
 }
 
-pub(crate) fn escape_json_string(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() + 2);
-    out.push('"');
-    for ch in s.chars() {
-        match ch {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\x08' => out.push_str("\\b"),
-            '\x0c' => out.push_str("\\f"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            c if (c as u32) < 0x20 => {
-                out.push_str(&format!("\\u{:04x}", c as u32));
-            }
-            c => out.push(c),
+pub(crate) fn json_array_elements(s: &str) -> Result<Vec<&str>, serde_json::Error> {
+    let elems: Vec<&RawValue> = serde_json::from_str(s)?;
+    Ok(elems.into_iter().map(RawValue::get).collect())
+}
+
+pub(crate) fn json_object_entries(s: &str) -> Result<Vec<(String, &str)>, serde_json::Error> {
+    struct EntriesVisitor;
+
+    impl<'de> Visitor<'de> for EntriesVisitor {
+        type Value = Vec<(String, &'de str)>;
+
+        fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("a JSON object")
         }
-    }
-    out.push('"');
-    out
-}
 
-fn parse_hex4(chars: &mut std::str::Chars<'_>) -> Result<u16, CalcifyError> {
-    let mut buf = [0u8; 4];
-    for slot in &mut buf {
-        let ch = chars.next().ok_or(CalcifyError::ParseError)?;
-        if !ch.is_ascii_hexdigit() {
-            return Err(CalcifyError::ParseError);
-        }
-        *slot = ch as u8;
-    }
-    let hex_str = std::str::from_utf8(&buf).map_err(|_| CalcifyError::ParseError)?;
-    u16::from_str_radix(hex_str, 16).map_err(|_| CalcifyError::ParseError)
-}
-
-pub(crate) fn unescape_json_string(s: &str) -> Result<String, CalcifyError> {
-    let trimmed = s.trim();
-    if trimmed.len() < 2 || !trimmed.starts_with('"') || !trimmed.ends_with('"') {
-        return Err(CalcifyError::ParseError);
-    }
-    let inner = &trimmed[1..trimmed.len() - 1];
-    let mut out = String::with_capacity(inner.len());
-    let mut chars = inner.chars();
-    while let Some(ch) = chars.next() {
-        match ch {
-            '"' => return Err(CalcifyError::ParseError),
-            c if (c as u32) < 0x20 => return Err(CalcifyError::ParseError),
-            '\\' => match chars.next() {
-                Some('"') => out.push('"'),
-                Some('\\') => out.push('\\'),
-                Some('/') => out.push('/'),
-                Some('b') => out.push('\x08'),
-                Some('f') => out.push('\x0c'),
-                Some('n') => out.push('\n'),
-                Some('r') => out.push('\r'),
-                Some('t') => out.push('\t'),
-                Some('u') => {
-                    let code = parse_hex4(&mut chars)?;
-                    if (0xD800..=0xDBFF).contains(&code) {
-                        if chars.next() != Some('\\') || chars.next() != Some('u') {
-                            return Err(CalcifyError::ParseError);
-                        }
-                        let low = parse_hex4(&mut chars)?;
-                        if !(0xDC00..=0xDFFF).contains(&low) {
-                            return Err(CalcifyError::ParseError);
-                        }
-                        let cp = 0x10000 + (((code as u32 - 0xD800) << 10) | (low as u32 - 0xDC00));
-                        let decoded = char::from_u32(cp).ok_or(CalcifyError::ParseError)?;
-                        out.push(decoded);
-                    } else if (0xDC00..=0xDFFF).contains(&code) {
-                        return Err(CalcifyError::ParseError);
-                    } else {
-                        let decoded = char::from_u32(code as u32).ok_or(CalcifyError::ParseError)?;
-                        out.push(decoded);
-                    }
+        fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+        where
+            A: MapAccess<'de>,
+        {
+            let mut entries = Vec::with_capacity(map.size_hint().unwrap_or(0));
+            let mut seen = HashSet::with_capacity(map.size_hint().unwrap_or(0));
+            while let Some((key, raw)) = map.next_entry::<String, &'de RawValue>()? {
+                if !seen.insert(key.clone()) {
+                    return Err(serde::de::Error::custom(format!(
+                        "duplicate key `{}`",
+                        key
+                    )));
                 }
-                _ => return Err(CalcifyError::ParseError),
-            },
-            c => out.push(c),
-        }
-    }
-    Ok(out)
-}
-
-fn split_top_level_comma(inner: &str) -> Result<Vec<&str>, CalcifyError> {
-    let mut parts = Vec::new();
-    let mut stack: Vec<char> = Vec::new();
-    let mut in_string = false;
-    let mut escaped = false;
-    let mut start = 0;
-
-    for (idx, ch) in inner.char_indices() {
-        if in_string {
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == '"' {
-                in_string = false;
+                entries.push((key, raw.get()));
             }
-            continue;
-        }
-        match ch {
-            '"' => in_string = true,
-            '{' => stack.push('}'),
-            '[' => stack.push(']'),
-            '}' | ']' => {
-                if stack.pop() != Some(ch) {
-                    return Err(CalcifyError::ParseError);
-                }
-            }
-            ',' if stack.is_empty() => {
-                let elem = inner[start..idx].trim();
-                if elem.is_empty() {
-                    return Err(CalcifyError::ParseError);
-                }
-                parts.push(elem);
-                start = idx + 1;
-            }
-            _ => {}
+            Ok(entries)
         }
     }
 
-    if in_string || !stack.is_empty() {
-        return Err(CalcifyError::ParseError);
-    }
-
-    let tail = inner[start..].trim();
-    if tail.is_empty() {
-        return Err(CalcifyError::ParseError);
-    }
-    parts.push(tail);
-    Ok(parts)
-}
-
-fn find_top_level_colon(entry: &str) -> Result<usize, CalcifyError> {
-    let mut in_string = false;
-    let mut escaped = false;
-    let mut depth: usize = 0;
-    for (idx, ch) in entry.char_indices() {
-        if in_string {
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == '"' {
-                in_string = false;
-            }
-            continue;
-        }
-        match ch {
-            '"' => in_string = true,
-            '{' | '[' => depth += 1,
-            '}' | ']' => {
-                if depth == 0 {
-                    return Err(CalcifyError::ParseError);
-                }
-                depth -= 1;
-            }
-            ':' if depth == 0 => return Ok(idx),
-            _ => {}
-        }
-    }
-    Err(CalcifyError::ParseError)
-}
-
-pub(crate) fn split_json_array(s: &str) -> Result<Vec<&str>, CalcifyError> {
-    let trimmed = s.trim();
-    if trimmed.len() < 2 || !trimmed.starts_with('[') || !trimmed.ends_with(']') {
-        return Err(CalcifyError::ParseError);
-    }
-    let inner = &trimmed[1..trimmed.len() - 1];
-    if inner.trim().is_empty() {
-        return Ok(Vec::new());
-    }
-    split_top_level_comma(inner)
-}
-
-pub(crate) fn split_json_object(s: &str) -> Result<Vec<(String, &str)>, CalcifyError> {
-    let trimmed = s.trim();
-    if trimmed.len() < 2 || !trimmed.starts_with('{') || !trimmed.ends_with('}') {
-        return Err(CalcifyError::ParseError);
-    }
-    let inner = &trimmed[1..trimmed.len() - 1];
-    if inner.trim().is_empty() {
-        return Ok(Vec::new());
-    }
-    let entries = split_top_level_comma(inner)?;
-    let mut out = Vec::with_capacity(entries.len());
-    for entry in entries {
-        let colon_idx = find_top_level_colon(entry)?;
-        let key_slice = entry[..colon_idx].trim();
-        let val_slice = entry[colon_idx + 1..].trim();
-        if val_slice.is_empty() {
-            return Err(CalcifyError::ParseError);
-        }
-        let key = unescape_json_string(key_slice)?;
-        out.push((key, val_slice));
-    }
-    Ok(out)
+    let mut de = serde_json::Deserializer::from_str(s);
+    let entries = de.deserialize_map(EntriesVisitor)?;
+    de.end()?;
+    Ok(entries)
 }
 
 fn take_bytes<'a>(cur: &mut &'a [u8], n: usize) -> Result<&'a [u8], CalcifyError> {
     if cur.len() < n {
-        return Err(CalcifyError::ParseError);
+        return Err(CalcifyError::ParseError(String::from(
+            "unexpected end of MessagePack input",
+        )));
     }
     let (head, tail) = cur.split_at(n);
     *cur = tail;
@@ -310,7 +160,8 @@ pub(crate) fn split_msgpack_value(input: &[u8]) -> Result<(&[u8], &[u8]), Calcif
 
     while remaining > 0 {
         remaining -= 1;
-        let marker = read_marker(&mut cur).map_err(|_| CalcifyError::ParseError)?;
+        let marker = read_marker(&mut cur)
+            .map_err(|e| CalcifyError::ParseError(format!("invalid MessagePack marker: {:?}", e)))?;
         match marker {
             Marker::FixPos(_)
             | Marker::FixNeg(_)
@@ -349,47 +200,47 @@ pub(crate) fn split_msgpack_value(input: &[u8]) -> Result<(&[u8], &[u8]), Calcif
             Marker::FixArray(len) => {
                 remaining = remaining
                     .checked_add(len as usize)
-                    .ok_or(CalcifyError::ParseError)?;
+                    .ok_or_else(|| CalcifyError::ParseError(String::from("MessagePack size overflow")))?;
             }
             Marker::Array16 => {
                 let b = take_bytes(&mut cur, 2)?;
                 let len = u16::from_be_bytes([b[0], b[1]]) as usize;
                 remaining = remaining
                     .checked_add(len)
-                    .ok_or(CalcifyError::ParseError)?;
+                    .ok_or_else(|| CalcifyError::ParseError(String::from("MessagePack size overflow")))?;
             }
             Marker::Array32 => {
                 let b = take_bytes(&mut cur, 4)?;
                 let len = u32::from_be_bytes([b[0], b[1], b[2], b[3]]) as usize;
                 remaining = remaining
                     .checked_add(len)
-                    .ok_or(CalcifyError::ParseError)?;
+                    .ok_or_else(|| CalcifyError::ParseError(String::from("MessagePack size overflow")))?;
             }
             Marker::FixMap(len) => {
                 let items = (len as usize)
                     .checked_mul(2)
-                    .ok_or(CalcifyError::ParseError)?;
+                    .ok_or_else(|| CalcifyError::ParseError(String::from("MessagePack size overflow")))?;
                 remaining = remaining
                     .checked_add(items)
-                    .ok_or(CalcifyError::ParseError)?;
+                    .ok_or_else(|| CalcifyError::ParseError(String::from("MessagePack size overflow")))?;
             }
             Marker::Map16 => {
                 let b = take_bytes(&mut cur, 2)?;
                 let items = (u16::from_be_bytes([b[0], b[1]]) as usize)
                     .checked_mul(2)
-                    .ok_or(CalcifyError::ParseError)?;
+                    .ok_or_else(|| CalcifyError::ParseError(String::from("MessagePack size overflow")))?;
                 remaining = remaining
                     .checked_add(items)
-                    .ok_or(CalcifyError::ParseError)?;
+                    .ok_or_else(|| CalcifyError::ParseError(String::from("MessagePack size overflow")))?;
             }
             Marker::Map32 => {
                 let b = take_bytes(&mut cur, 4)?;
                 let items = (u32::from_be_bytes([b[0], b[1], b[2], b[3]]) as usize)
                     .checked_mul(2)
-                    .ok_or(CalcifyError::ParseError)?;
+                    .ok_or_else(|| CalcifyError::ParseError(String::from("MessagePack size overflow")))?;
                 remaining = remaining
                     .checked_add(items)
-                    .ok_or(CalcifyError::ParseError)?;
+                    .ok_or_else(|| CalcifyError::ParseError(String::from("MessagePack size overflow")))?;
             }
             Marker::FixExt1 => {
                 take_bytes(&mut cur, 2)?;
@@ -418,10 +269,16 @@ pub(crate) fn split_msgpack_value(input: &[u8]) -> Result<(&[u8], &[u8]), Calcif
             Marker::Ext32 => {
                 let b = take_bytes(&mut cur, 4)?;
                 let len = u32::from_be_bytes([b[0], b[1], b[2], b[3]]) as usize;
-                let total = len.checked_add(1).ok_or(CalcifyError::ParseError)?;
+                let total = len
+                    .checked_add(1)
+                    .ok_or_else(|| CalcifyError::ParseError(String::from("MessagePack size overflow")))?;
                 take_bytes(&mut cur, total)?;
             }
-            Marker::Reserved => return Err(CalcifyError::ParseError),
+            Marker::Reserved => {
+                return Err(CalcifyError::ParseError(String::from(
+                    "reserved MessagePack marker",
+                )));
+            }
         }
     }
 
@@ -432,9 +289,9 @@ pub(crate) fn split_msgpack_value(input: &[u8]) -> Result<(&[u8], &[u8]), Calcif
 /// Wraps the String in quotes("").
 impl Serializable for String {
     fn to_json(&self) -> String {
-        escape_json_string(self)
+        serde_json::to_string(self).unwrap()
     }
-    fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
+    fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
         let mut buf = Vec::new();
         write_str(&mut buf, self.as_str())?;
         Ok(buf)
@@ -443,12 +300,12 @@ impl Serializable for String {
 
 impl Deserializable for String {
     fn from_json(string: &str) -> Result<Self, Box<dyn error::Error>> {
-        unescape_json_string(string).map_err(|e| Box::new(e) as Box<dyn error::Error>)
+        Ok(serde_json::from_str(string)?)
     }
 
     fn from_msg(bytes: &[u8]) -> Result<(Self, &[u8]), Box<dyn error::Error>> {
         let (s, rest) = read_str_from_slice(bytes)
-            .map_err(|_| Box::new(CalcifyError::ParseError) as Box<dyn error::Error>)?;
+            .map_err(|e| Box::new(CalcifyError::ParseError(format!("invalid MessagePack string: {}", e))) as Box<dyn error::Error>)?;
         Ok((s.to_owned(), rest))
     }
 }
@@ -495,6 +352,15 @@ mod tests {
     }
 
     #[test]
+    fn test_f64_non_finite_json() {
+        assert_eq!(f64::NAN.to_json(), "null");
+        assert_eq!(f64::INFINITY.to_json(), "null");
+        assert_eq!(f64::NEG_INFINITY.to_json(), "null");
+        assert!(f64::from_json("null").is_err());
+        assert_eq!(f64::from_json("1.5").unwrap(), 1.5);
+    }
+
+    #[test]
     fn test_string_roundtrip() {
         let cases = [
             "",
@@ -526,37 +392,42 @@ mod tests {
     }
 
     #[test]
-    fn test_split_json_array() {
-        assert_eq!(split_json_array("[]").unwrap(), Vec::<&str>::new());
-        assert_eq!(split_json_array("  [  ]  ").unwrap(), Vec::<&str>::new());
-        assert_eq!(split_json_array("[1, 2, 3]").unwrap(), vec!["1", "2", "3"]);
+    fn test_json_array_elements() {
+        assert_eq!(json_array_elements("[]").unwrap(), Vec::<&str>::new());
+        assert_eq!(json_array_elements("  [  ]  ").unwrap(), Vec::<&str>::new());
+        assert_eq!(json_array_elements("[1, 2, 3]").unwrap(), vec!["1", "2", "3"]);
         assert_eq!(
-            split_json_array(r#"[{"a":[1,2],"b":"x,y}"}, {"a":[]}]"#).unwrap(),
+            json_array_elements(r#"[{"a":[1,2],"b":"x,y}"}, {"a":[]}]"#).unwrap(),
             vec![r#"{"a":[1,2],"b":"x,y}"}"#, r#"{"a":[]}"#]
         );
-        assert!(split_json_array("[1, 2, ]").is_err());
-        assert!(split_json_array("[,1]").is_err());
-        assert!(split_json_array("[1,,2]").is_err());
-        assert!(split_json_array("[1],[2]").is_err());
-        assert!(split_json_array("[}]").is_err());
-        assert!(split_json_array("[{1]").is_err());
-        assert!(split_json_array("[\"unterminated]").is_err());
+        assert!(json_array_elements("[1, 2, ]").is_err());
+        assert!(json_array_elements("[,1]").is_err());
+        assert!(json_array_elements("[1,,2]").is_err());
+        assert!(json_array_elements("[1],[2]").is_err());
+        assert!(json_array_elements("[}]").is_err());
+        assert!(json_array_elements("[{1]").is_err());
+        assert!(json_array_elements("[\"unterminated]").is_err());
     }
 
     #[test]
-    fn test_split_json_object() {
-        assert_eq!(split_json_object("{}").unwrap(), Vec::<(String, &str)>::new());
+    fn test_json_object_entries() {
         assert_eq!(
-            split_json_object(r#" { "a:b" : [1, 2] , "c" : {"x": 3} } "#).unwrap(),
+            json_object_entries("{}").unwrap(),
+            Vec::<(String, &str)>::new()
+        );
+        assert_eq!(
+            json_object_entries(r#" { "a:b" : [1, 2] , "c" : {"x": 3}, "d": "a\"b" } "#).unwrap(),
             vec![
                 ("a:b".to_string(), "[1, 2]"),
                 ("c".to_string(), "{\"x\": 3}"),
+                ("d".to_string(), "\"a\\\"b\""),
             ]
         );
-        assert!(split_json_object(r#"{"a": 1,}"#).is_err());
-        assert!(split_json_object(r#"{"a":}"#).is_err());
-        assert!(split_json_object(r#"{"a"}"#).is_err());
-        assert!(split_json_object(r#"{"a":1},{"b":2}"#).is_err());
+        assert!(json_object_entries(r#"{"a":1,"a":2}"#).is_err());
+        assert!(json_object_entries(r#"{"a": 1,}"#).is_err());
+        assert!(json_object_entries(r#"{"a":}"#).is_err());
+        assert!(json_object_entries(r#"{"a"}"#).is_err());
+        assert!(json_object_entries(r#"{"a":1},{"b":2}"#).is_err());
     }
 
     #[test]

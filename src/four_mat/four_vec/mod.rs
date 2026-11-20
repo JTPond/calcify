@@ -1,12 +1,12 @@
+use std::error;
+use std::fmt;
+use std::iter;
 use std::ops::Add;
 use std::ops::AddAssign;
-use std::ops::Sub;
-use std::ops::SubAssign;
 use std::ops::Mul;
 use std::ops::Neg;
-use std::iter;
-use std::fmt;
-use std::error;
+use std::ops::Sub;
+use std::ops::SubAssign;
 
 use crate::three_mat;
 
@@ -14,11 +14,14 @@ use three_mat::ThreeVec;
 
 use crate::utils;
 use utils::consts;
-use utils::{Serializable, Deserializable};
 use utils::errors::CalcifyError;
+use utils::{Deserializable, Serializable};
 
-use rmp::encode::*;
 use rmp::decode::*;
+use rmp::encode::*;
+use serde::de::{self, Deserializer, MapAccess, Visitor};
+use serde::ser::{SerializeStruct, Serializer};
+use serde::{Deserialize, Serialize};
 
 /// Variants of S space-time invariant
 #[derive(Debug, PartialEq)]
@@ -263,12 +266,112 @@ impl fmt::Display for FourVec {
     }
 }
 
+impl Serialize for FourVec {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut state = serializer.serialize_struct("FourVec", 4)?;
+        state.serialize_field("m0", &self.m0)?;
+        state.serialize_field("m1", &self.m1)?;
+        state.serialize_field("m2", &self.m2)?;
+        state.serialize_field("m3", &self.m3)?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for FourVec {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        enum Field {
+            M0,
+            M1,
+            M2,
+            M3,
+        }
+
+        impl<'de> Deserialize<'de> for Field {
+            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Field, D::Error> {
+                struct FieldVisitor;
+
+                impl<'de> Visitor<'de> for FieldVisitor {
+                    type Value = Field;
+
+                    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                        f.write_str("`m0`, `m1`, `m2`, or `m3`")
+                    }
+
+                    fn visit_str<E: de::Error>(self, value: &str) -> Result<Field, E> {
+                        match value {
+                            "m0" => Ok(Field::M0),
+                            "m1" => Ok(Field::M1),
+                            "m2" => Ok(Field::M2),
+                            "m3" => Ok(Field::M3),
+                            _ => Err(de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+
+                deserializer.deserialize_identifier(FieldVisitor)
+            }
+        }
+
+        struct FourVecVisitor;
+
+        impl<'de> Visitor<'de> for FourVecVisitor {
+            type Value = FourVec;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("struct FourVec")
+            }
+
+            fn visit_map<V: MapAccess<'de>>(self, mut map: V) -> Result<FourVec, V::Error> {
+                let mut m0: Option<f64> = None;
+                let mut m1: Option<f64> = None;
+                let mut m2: Option<f64> = None;
+                let mut m3: Option<f64> = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::M0 => {
+                            if m0.is_some() {
+                                return Err(de::Error::duplicate_field("m0"));
+                            }
+                            m0 = Some(map.next_value()?);
+                        }
+                        Field::M1 => {
+                            if m1.is_some() {
+                                return Err(de::Error::duplicate_field("m1"));
+                            }
+                            m1 = Some(map.next_value()?);
+                        }
+                        Field::M2 => {
+                            if m2.is_some() {
+                                return Err(de::Error::duplicate_field("m2"));
+                            }
+                            m2 = Some(map.next_value()?);
+                        }
+                        Field::M3 => {
+                            if m3.is_some() {
+                                return Err(de::Error::duplicate_field("m3"));
+                            }
+                            m3 = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let m0 = m0.ok_or_else(|| de::Error::missing_field("m0"))?;
+                let m1 = m1.ok_or_else(|| de::Error::missing_field("m1"))?;
+                let m2 = m2.ok_or_else(|| de::Error::missing_field("m2"))?;
+                let m3 = m3.ok_or_else(|| de::Error::missing_field("m3"))?;
+                Ok(FourVec { m0, m1, m2, m3 })
+            }
+        }
+
+        const FIELDS: &[&str] = &["m0", "m1", "m2", "m3"];
+        deserializer.deserialize_struct("FourVec", FIELDS, FourVecVisitor)
+    }
+}
+
 impl Serializable for FourVec {
     fn to_json(&self) -> String {
-        format!("{{\"m0\":{},\"m1\":{},\"m2\":{},\"m3\":{}}}",
-            self.m0(), self.m1(), self.m2(), self.m3())
+        serde_json::to_string(self).unwrap()
     }
-    fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
+    fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
         let mut buf = Vec::with_capacity(5);
         write_array_len(&mut buf, 4)?;
         write_f64(&mut buf, *self.m0())?;
@@ -280,34 +383,21 @@ impl Serializable for FourVec {
 }
 
 impl Deserializable for FourVec {
-
     fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
-        let mut m0: f64 = f64::NAN;
-        let mut m1: f64 = f64::NAN;
-        let mut m2: f64 = f64::NAN;
-        let mut m3: f64 = f64::NAN;
-        for dim in s.trim_matches(|p| p == '{' || p == '}' ).split(',') {
-            let n_v: Vec<&str> = dim.split(':').collect();
-            match n_v[0] {
-                "\"m0\"" => m0 = n_v[1].parse::<f64>()?,
-                "\"m1\"" => m1 = n_v[1].parse::<f64>()?,
-                "\"m2\"" => m2 = n_v[1].parse::<f64>()?,
-                "\"m3\"" => m3 = n_v[1].parse::<f64>()?,
-                _ => return Err(Box::new(CalcifyError::ParseError)),
-            }
-        }
-        Ok(FourVec{m0,m1,m2,m3})
+        Ok(serde_json::from_str(s)?)
     }
 
-    fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
-        if let Ok(4) = read_array_len(&mut bytes){
-            let mut x: [f64;4] = [f64::NAN;4];
+    fn from_msg(mut bytes: &[u8]) -> Result<(Self, &[u8]), Box<dyn error::Error>> {
+        if let Ok(4) = read_array_len(&mut bytes) {
+            let mut x: [f64; 4] = [f64::NAN; 4];
             for item in &mut x {
                 *item = read_f64(&mut bytes)?;
             }
-            Ok((FourVec::from(&x),bytes))
+            Ok((FourVec::from(&x), bytes))
         } else {
-            Err(Box::new(CalcifyError::ParseError))
+            Err(Box::new(CalcifyError::ParseError(String::from(
+                "invalid MessagePack FourVec",
+            ))))
         }
     }
 }
@@ -451,15 +541,26 @@ mod tests {
 
     #[test]
     fn test_json() {
-        let vec4 = FourVec::new(5.0,2.0,2.0,2.0);
-        assert_eq!(vec4.to_json(),"{\"m0\":5,\"m1\":2,\"m2\":2,\"m3\":2}");
+        let vec4 = FourVec::new(5.0, 2.0, 2.0, 2.0);
+        assert_eq!(vec4.to_json(), "{\"m0\":5.0,\"m1\":2.0,\"m2\":2.0,\"m3\":2.0}");
     }
 
     #[test]
     fn test_parse() {
-        let xx = FourVec::new(5.0,2.0,2.0,2.0);
+        let xx = FourVec::new(5.0, 2.0, -3.5, 4.25);
         let pp = xx.to_json();
-        assert_eq!(FourVec::from_json(&pp).unwrap(),xx);
+        assert_eq!(FourVec::from_json(&pp).unwrap(), xx);
+        assert_eq!(
+            FourVec::from_json(r#" { "m3" : 4.25 , "m1" : 2.0 , "m0" : 5.0 , "m2" : -3.5 } "#)
+                .unwrap(),
+            xx
+        );
+        let rt: FourVec = serde_json::from_str(&serde_json::to_string(&xx).unwrap()).unwrap();
+        assert_eq!(rt, xx);
+
+        assert!(FourVec::from_json(r#"{"m0":1.0,"m1":2.0,"m2":3.0}"#).is_err());
+        assert!(FourVec::from_json(r#"{"m0":1.0,"m1":2.0,"m2":3.0,"m3":4.0,"m4":5.0}"#).is_err());
+        assert!(FourVec::from_json(r#"{"m0":1.0,"m0":2.0,"m1":2.0,"m2":3.0,"m3":4.0}"#).is_err());
     }
 
     #[test]

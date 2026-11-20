@@ -10,9 +10,9 @@ pub mod errors;
 
 /// ## File IO
 ///
-/// * Even though json is supported for both reading and writing, it's not as efficiently implemented and may lead to slowdowns when reading large files. Consider only using it for debugging, so that you can read the results of tests, otherwise use msg.
-///
-/// * Feel free to use Serde when implementing the Serialization traits for your types
+/// * JSON serialization and deserialization are powered by `serde_json` (`to_json` / `from_json`), while MessagePack (`to_msg` / `from_msg`) uses `rmp` for compact binary files.
+/// * `ToFile` and `FromFile` accept any `impl AsRef<Path>` (`&str`, `&Path`, `PathBuf`).
+/// * Feel free to use `serde` when implementing the Serialization traits for your custom `"Object"` types.
 ///
 /// ### Trees
 ///

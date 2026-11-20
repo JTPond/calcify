@@ -1,110 +1,201 @@
+use std::any::Any;
 use std::error;
 
 mod collection;
-pub use collection::Collection;
 pub use collection::Bin;
+pub use collection::Collection;
 pub use collection::Point;
 pub use collection::PointBin;
 pub use collection::StampedSample;
-use crate::four_mat::FourVec;
 use crate::four_mat::FourMat;
+use crate::four_mat::FourVec;
 
 use crate::three_mat::ThreeMat;
 use crate::three_mat::ThreeVec;
 
 use crate::utils;
-use utils::{Serializable, Deserializable};
 use utils::errors::CalcifyError;
-use utils::serializable::{split_json_object, split_msgpack_value};
+use utils::serializable::{json_object_entries, split_msgpack_value};
+use utils::{Deserializable, Serializable};
 
-use rmp::encode::*;
 use rmp::decode::*;
+use rmp::encode::*;
 
-pub(crate) const VALUE_SUBTYPES: [&str; 12] = [
-    "f64",
-    "i64",
-    "u64",
-    "String",
-    "ThreeVec",
-    "ThreeMat",
-    "FourVec",
-    "FourMat",
-    "Bin",
-    "Point",
-    "PointBin",
-    "Object",
-];
-
+pub(crate) const OBJECT_SUBTYPE: &str = "Object";
 pub(crate) const STAMPED_SAMPLE_SUBTYPE: &str = "StampedSample";
 
+mod private {
+    pub trait Sealed {}
+}
+
+/// Sealed marker trait mapping built-in Calcify value types to their branch subtype tag.
+///
+/// Custom user types do not implement `CalcifyType`; store them via
+/// [`Tree::add_object_branch`](crate::Tree::add_object_branch) or
+/// [`FeedTree::new_object`](crate::FeedTree::new_object).
+pub trait CalcifyType: private::Sealed + 'static + Serializable {
+    const SUBTYPE: &'static str;
+}
+
+macro_rules! impl_calcify_type {
+    ($($ty:ty => $name:expr),* $(,)?) => {
+        $(
+            impl private::Sealed for $ty {}
+            impl CalcifyType for $ty {
+                const SUBTYPE: &'static str = $name;
+            }
+        )*
+    };
+}
+
+impl_calcify_type!(
+    f64 => "f64",
+    i64 => "i64",
+    u64 => "u64",
+    String => "String",
+    ThreeVec => "ThreeVec",
+    ThreeMat => "ThreeMat",
+    FourVec => "FourVec",
+    FourMat => "FourMat",
+    Bin => "Bin",
+    Point => "Point",
+    PointBin => "PointBin",
+);
+
+pub(crate) trait BranchPayload: Serializable + Any {
+    fn as_any(&self) -> &dyn Any;
+    fn len(&self) -> usize;
+}
+
+impl<T: 'static + Serializable> BranchPayload for Collection<T> {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn len(&self) -> usize {
+        self.vec.len()
+    }
+}
 
 /// Branch
 ///
 /// # Note
 ///
-/// * **Not intended for direct use. Use the memebers of Tree instead.**
+/// * **Not intended for direct construction in most cases; use the members of `Tree` instead.**
 pub struct Branch {
     subtype: String,
     value_subtype: Option<String>,
-    branch: Box<dyn Serializable>,
-    buffer: Option<Vec<u8>>,
+    branch: Box<dyn BranchPayload>,
 }
 
 impl Branch {
-    pub fn new(subtype: String, branch: Box<dyn Serializable>) -> Branch {
-        let buffer: Option<Vec<u8>> = None;
+    /// Creates a new `Branch` holding a built-in `Collection<T>`.
+    pub fn new<T: CalcifyType>(branch: Collection<T>) -> Branch {
         Branch {
-            subtype,
+            subtype: String::from(T::SUBTYPE),
             value_subtype: None,
-            branch,
-            buffer,
+            branch: Box::new(branch),
         }
     }
 
-    pub fn new_stamped(value_subtype: String, branch: Box<dyn Serializable>) -> Branch {
+    /// Creates a new stamped `Branch` holding a `Collection<StampedSample<T>>`.
+    pub fn new_stamped<T: CalcifyType>(branch: Collection<StampedSample<T>>) -> Branch {
         Branch {
             subtype: String::from(STAMPED_SAMPLE_SUBTYPE),
-            value_subtype: Some(value_subtype),
-            branch,
-            buffer: None,
+            value_subtype: Some(String::from(T::SUBTYPE)),
+            branch: Box::new(branch),
         }
     }
 
+    /// Creates a new `"Object"` `Branch` holding a `Collection<T>` for custom types.
+    pub fn new_object<T: 'static + Serializable>(branch: Collection<T>) -> Branch {
+        Branch {
+            subtype: String::from(OBJECT_SUBTYPE),
+            value_subtype: None,
+            branch: Box::new(branch),
+        }
+    }
+
+    /// Creates a new stamped `"Object"` `Branch` holding a `Collection<StampedSample<T>>`.
+    pub fn new_stamped_object<T: 'static + Serializable>(
+        branch: Collection<StampedSample<T>>,
+    ) -> Branch {
+        Branch {
+            subtype: String::from(STAMPED_SAMPLE_SUBTYPE),
+            value_subtype: Some(String::from(OBJECT_SUBTYPE)),
+            branch: Box::new(branch),
+        }
+    }
+
+    pub(crate) fn from_payload(
+        subtype: String,
+        value_subtype: Option<String>,
+        branch: Box<dyn BranchPayload>,
+    ) -> Branch {
+        Branch {
+            subtype,
+            value_subtype,
+            branch,
+        }
+    }
+
+    /// Returns the branch subtype tag (e.g., `"f64"`, `"Bin"`, `"StampedSample"`, or `"Object"`).
     pub fn subtype(&self) -> &str {
         &self.subtype
     }
 
+    /// Returns the inner value subtype tag for `"StampedSample"` branches, or `None` otherwise.
     pub fn value_subtype(&self) -> Option<&str> {
         self.value_subtype.as_deref()
     }
 
-    /// Returns a Collection of the specified subtype from the Branch
-    ///
-    pub fn extract<T: Serializable + Deserializable>(&mut self) -> Result<Collection<T>, Box<dyn error::Error>> {
-        if self.buffer.is_none() {
-            self.buffer = Some(self.branch.to_msg()?);
+    /// Returns the number of elements in the branch collection.
+    pub fn len(&self) -> usize {
+        self.branch.len()
+    }
+
+    /// Returns `true` if the branch collection has no elements.
+    pub fn is_empty(&self) -> bool {
+        self.branch.len() == 0
+    }
+
+    pub(crate) fn type_label(&self) -> String {
+        match &self.value_subtype {
+            Some(vs) => format!("{}<{}>", self.subtype, vs),
+            None => self.subtype.clone(),
         }
-        if let Ok((out, rest)) = Collection::<T>::from_msg(self.buffer.as_ref().unwrap())
-            && rest.is_empty()
-        {
-            return Ok(out);
-        }
-        Err(Box::new(CalcifyError::ParseError))
+    }
+
+    /// Borrows the underlying `Collection<T>` directly without copying or re-deserializing.
+    pub fn as_collection<T: 'static + Serializable>(&self) -> Option<&Collection<T>> {
+        self.branch.as_any().downcast_ref::<Collection<T>>()
+    }
+
+    /// Clones and returns the `Collection<T>` stored in this `Branch`.
+    pub fn extract<T: 'static + Serializable + Clone>(&self) -> Result<Collection<T>, CalcifyError> {
+        self.as_collection::<T>()
+            .cloned()
+            .ok_or_else(|| CalcifyError::SubtypeMismatch {
+                expected: String::from(std::any::type_name::<T>()),
+                found: self.type_label(),
+            })
     }
 }
 
 fn decode_collection_json<T: 'static + Serializable + Deserializable>(
     s: &str,
-) -> Result<Box<dyn Serializable>, Box<dyn error::Error>> {
+) -> Result<Box<dyn BranchPayload>, Box<dyn error::Error>> {
     Ok(Box::new(Collection::<T>::from_json(s)?))
 }
 
 fn decode_collection_msg<T: 'static + Serializable + Deserializable>(
     bytes: &[u8],
-) -> Result<Box<dyn Serializable>, Box<dyn error::Error>> {
+) -> Result<Box<dyn BranchPayload>, Box<dyn error::Error>> {
     let (ot, rest) = Collection::<T>::from_msg(bytes)?;
     if !rest.is_empty() {
-        return Err(Box::new(CalcifyError::ParseError));
+        return Err(Box::new(CalcifyError::ParseError(String::from(
+            "trailing bytes in MessagePack branch collection",
+        ))));
     }
     Ok(Box::new(ot))
 }
@@ -157,33 +248,36 @@ macro_rules! match_builtin_subtype {
                 $body
             }
             "Object" => Err(Box::new(CalcifyError::ObjectBranchDeserializeError)),
-            _ => Err(Box::new(CalcifyError::ParseError)),
+            other => Err(Box::new(CalcifyError::InvalidSubtype(String::from(other)))),
         }
     };
 }
 
-fn decode_plain_json(subtype: &str, s: &str) -> Result<Box<dyn Serializable>, Box<dyn error::Error>> {
+fn decode_plain_json(
+    subtype: &str,
+    s: &str,
+) -> Result<Box<dyn BranchPayload>, Box<dyn error::Error>> {
     match_builtin_subtype!(subtype, |T| decode_collection_json::<T>(s))
 }
 
 fn decode_stamped_json(
     value_subtype: &str,
     s: &str,
-) -> Result<Box<dyn Serializable>, Box<dyn error::Error>> {
+) -> Result<Box<dyn BranchPayload>, Box<dyn error::Error>> {
     match_builtin_subtype!(value_subtype, |T| decode_collection_json::<StampedSample<T>>(s))
 }
 
 fn decode_plain_msg(
     subtype: &str,
     bytes: &[u8],
-) -> Result<Box<dyn Serializable>, Box<dyn error::Error>> {
+) -> Result<Box<dyn BranchPayload>, Box<dyn error::Error>> {
     match_builtin_subtype!(subtype, |T| decode_collection_msg::<T>(bytes))
 }
 
 fn decode_stamped_msg(
     value_subtype: &str,
     bytes: &[u8],
-) -> Result<Box<dyn Serializable>, Box<dyn error::Error>> {
+) -> Result<Box<dyn BranchPayload>, Box<dyn error::Error>> {
     match_builtin_subtype!(value_subtype, |T| decode_collection_msg::<StampedSample<T>>(bytes))
 }
 
@@ -226,63 +320,69 @@ impl Deserializable for Branch {
         let mut value_subtype: Option<String> = None;
         let mut branch_str: Option<&str> = None;
 
-        for (key, val_str) in split_json_object(s)? {
+        for (key, val_str) in json_object_entries(s)? {
             match key.as_str() {
-                "subtype" => {
-                    if subtype.is_some() {
-                        return Err(Box::new(CalcifyError::ParseError));
-                    }
-                    subtype = Some(String::from_json(val_str)?);
+                "subtype" => subtype = Some(String::from_json(val_str)?),
+                "value_subtype" => value_subtype = Some(String::from_json(val_str)?),
+                "branch" => branch_str = Some(val_str),
+                _ => {
+                    return Err(Box::new(CalcifyError::ParseError(format!(
+                        "unexpected Branch field '{}'",
+                        key
+                    ))));
                 }
-                "value_subtype" => {
-                    if value_subtype.is_some() {
-                        return Err(Box::new(CalcifyError::ParseError));
-                    }
-                    value_subtype = Some(String::from_json(val_str)?);
-                }
-                "branch" => {
-                    if branch_str.is_some() {
-                        return Err(Box::new(CalcifyError::ParseError));
-                    }
-                    branch_str = Some(val_str);
-                }
-                _ => return Err(Box::new(CalcifyError::ParseError)),
             }
         }
 
         let (Some(subtype), Some(branch_str)) = (subtype, branch_str) else {
-            return Err(Box::new(CalcifyError::ParseError));
+            return Err(Box::new(CalcifyError::ParseError(String::from(
+                "missing Branch subtype or payload",
+            ))));
         };
 
         if subtype == STAMPED_SAMPLE_SUBTYPE {
             let Some(vs) = value_subtype else {
-                return Err(Box::new(CalcifyError::ParseError));
+                return Err(Box::new(CalcifyError::ParseError(String::from(
+                    "StampedSample branch missing value_subtype",
+                ))));
             };
             let branch = decode_stamped_json(&vs, branch_str)?;
-            Ok(Branch::new_stamped(vs, branch))
+            Ok(Branch::from_payload(subtype, Some(vs), branch))
         } else {
             if value_subtype.is_some() {
-                return Err(Box::new(CalcifyError::ParseError));
+                return Err(Box::new(CalcifyError::ParseError(String::from(
+                    "unexpected value_subtype on non-StampedSample branch",
+                ))));
             }
             let branch = decode_plain_json(&subtype, branch_str)?;
-            Ok(Branch::new(subtype, branch))
+            Ok(Branch::from_payload(subtype, None, branch))
         }
     }
 
     fn from_msg(mut bytes: &[u8]) -> Result<(Self, &[u8]), Box<dyn error::Error>> {
-        let map_len = read_map_len(&mut bytes)
-            .map_err(|_| Box::new(CalcifyError::ParseError) as Box<dyn error::Error>)?;
+        let map_len = read_map_len(&mut bytes).map_err(|e| {
+            Box::new(CalcifyError::ParseError(format!(
+                "invalid MessagePack Branch map: {}",
+                e
+            ))) as Box<dyn error::Error>
+        })?;
         let mut subtype: Option<String> = None;
         let mut value_subtype: Option<String> = None;
         let mut branch_bytes: Option<&[u8]> = None;
 
         for _ in 0..map_len {
-            let (key, rest) = read_str_from_slice(bytes)
-                .map_err(|_| Box::new(CalcifyError::ParseError) as Box<dyn error::Error>)?;
+            let (key, rest) = read_str_from_slice(bytes).map_err(|e| {
+                Box::new(CalcifyError::ParseError(format!(
+                    "invalid MessagePack Branch key: {}",
+                    e
+                ))) as Box<dyn error::Error>
+            })?;
             match key {
                 "subtype" => {
                     if subtype.is_some() {
-                        return Err(Box::new(CalcifyError::ParseError));
+                        return Err(Box::new(CalcifyError::ParseError(String::from(
+                            "duplicate Branch subtype",
+                        ))));
                     }
                     let (val, next) = String::from_msg(rest)?;
                     subtype = Some(val);
@@ -290,7 +390,9 @@ impl Deserializable for Branch {
                 }
                 "value_subtype" => {
                     if value_subtype.is_some() {
-                        return Err(Box::new(CalcifyError::ParseError));
+                        return Err(Box::new(CalcifyError::ParseError(String::from(
+                            "duplicate Branch value_subtype",
+                        ))));
                     }
                     let (val, next) = String::from_msg(rest)?;
                     value_subtype = Some(val);
@@ -298,32 +400,45 @@ impl Deserializable for Branch {
                 }
                 "branch" => {
                     if branch_bytes.is_some() {
-                        return Err(Box::new(CalcifyError::ParseError));
+                        return Err(Box::new(CalcifyError::ParseError(String::from(
+                            "duplicate Branch payload",
+                        ))));
                     }
                     let (val_slice, next) = split_msgpack_value(rest)?;
                     branch_bytes = Some(val_slice);
                     bytes = next;
                 }
-                _ => return Err(Box::new(CalcifyError::ParseError)),
+                other => {
+                    return Err(Box::new(CalcifyError::ParseError(format!(
+                        "unexpected MessagePack Branch key '{}'",
+                        other
+                    ))));
+                }
             }
         }
 
         let (Some(subtype), Some(branch_bytes)) = (subtype, branch_bytes) else {
-            return Err(Box::new(CalcifyError::ParseError));
+            return Err(Box::new(CalcifyError::ParseError(String::from(
+                "missing Branch subtype or payload",
+            ))));
         };
 
         if subtype == STAMPED_SAMPLE_SUBTYPE {
             let Some(vs) = value_subtype else {
-                return Err(Box::new(CalcifyError::ParseError));
+                return Err(Box::new(CalcifyError::ParseError(String::from(
+                    "StampedSample branch missing value_subtype",
+                ))));
             };
             let branch = decode_stamped_msg(&vs, branch_bytes)?;
-            Ok((Branch::new_stamped(vs, branch), bytes))
+            Ok((Branch::from_payload(subtype, Some(vs), branch), bytes))
         } else {
             if value_subtype.is_some() {
-                return Err(Box::new(CalcifyError::ParseError));
+                return Err(Box::new(CalcifyError::ParseError(String::from(
+                    "unexpected value_subtype on non-StampedSample branch",
+                ))));
             }
             let branch = decode_plain_msg(&subtype, branch_bytes)?;
-            Ok((Branch::new(subtype, branch), bytes))
+            Ok((Branch::from_payload(subtype, None, branch), bytes))
         }
     }
 }
@@ -335,19 +450,27 @@ mod tests {
     #[test]
     fn test_plain_branch_roundtrip_and_format() {
         let col = Collection::from(vec![1.0, 2.5]);
-        let br = Branch::new(String::from("f64"), Box::new(col.clone()));
+        let br = Branch::new(col.clone());
         assert_eq!(br.subtype(), "f64");
         assert_eq!(br.value_subtype(), None);
+        assert_eq!(br.len(), 2);
+        assert!(!br.is_empty());
+        assert_eq!(br.as_collection::<f64>(), Some(&col));
+        assert_eq!(br.extract::<f64>().unwrap(), col);
+        assert!(matches!(
+            br.extract::<i64>(),
+            Err(CalcifyError::SubtypeMismatch { .. })
+        ));
 
         let json = br.to_json();
-        assert_eq!(json, r#"{"subtype":"f64","branch":[1,2.5]}"#);
-        let mut dec_json = Branch::from_json(&json).unwrap();
+        assert_eq!(json, r#"{"subtype":"f64","branch":[1.0,2.5]}"#);
+        let dec_json = Branch::from_json(&json).unwrap();
         assert_eq!(dec_json.subtype(), "f64");
         assert_eq!(dec_json.value_subtype(), None);
         assert_eq!(dec_json.extract::<f64>().unwrap(), col);
 
         let msg = br.to_msg().unwrap();
-        let (mut dec_msg, rest) = Branch::from_msg(&msg).unwrap();
+        let (dec_msg, rest) = Branch::from_msg(&msg).unwrap();
         assert!(rest.is_empty());
         assert_eq!(dec_msg.subtype(), "f64");
         assert_eq!(dec_msg.value_subtype(), None);
@@ -356,30 +479,44 @@ mod tests {
 
     #[test]
     fn test_stamped_branch_roundtrip_and_key_order() {
-        let stream = Collection::stream(&[-10, 0, 25], &[ThreeVec::new(1.0, 2.0, 3.0), ThreeVec::new(4.0, 5.0, 6.0), ThreeVec::new(7.0, 8.0, 9.0)]);
-        let br = Branch::new_stamped(String::from("ThreeVec"), Box::new(stream.clone()));
+        let stream = Collection::stream(
+            &[-10, 0, 25],
+            &[
+                ThreeVec::new(1.0, 2.0, 3.0),
+                ThreeVec::new(4.0, 5.0, 6.0),
+                ThreeVec::new(7.0, 8.0, 9.0),
+            ],
+        );
+        let br = Branch::new_stamped(stream.clone());
         assert_eq!(br.subtype(), "StampedSample");
         assert_eq!(br.value_subtype(), Some("ThreeVec"));
+        assert_eq!(br.len(), 3);
 
         let json = br.to_json();
-        let mut dec_json = Branch::from_json(&json).unwrap();
+        let dec_json = Branch::from_json(&json).unwrap();
         assert_eq!(dec_json.subtype(), "StampedSample");
         assert_eq!(dec_json.value_subtype(), Some("ThreeVec"));
-        assert_eq!(dec_json.extract::<StampedSample<ThreeVec>>().unwrap(), stream);
+        assert_eq!(
+            dec_json.extract::<StampedSample<ThreeVec>>().unwrap(),
+            stream
+        );
 
         let msg = br.to_msg().unwrap();
-        let (mut dec_msg, rest) = Branch::from_msg(&msg).unwrap();
+        let (dec_msg, rest) = Branch::from_msg(&msg).unwrap();
         assert!(rest.is_empty());
         assert_eq!(dec_msg.subtype(), "StampedSample");
         assert_eq!(dec_msg.value_subtype(), Some("ThreeVec"));
-        assert_eq!(dec_msg.extract::<StampedSample<ThreeVec>>().unwrap(), stream);
+        assert_eq!(
+            dec_msg.extract::<StampedSample<ThreeVec>>().unwrap(),
+            stream
+        );
 
         // Reordered keys in JSON
         let reordered_json = format!(
             r#"{{"branch":{},"value_subtype":"ThreeVec","subtype":"StampedSample"}}"#,
             stream.to_json()
         );
-        let mut dec_reordered = Branch::from_json(&reordered_json).unwrap();
+        let dec_reordered = Branch::from_json(&reordered_json).unwrap();
         assert_eq!(
             dec_reordered.extract::<StampedSample<ThreeVec>>().unwrap(),
             stream
@@ -395,43 +532,60 @@ mod tests {
         write_str(&mut reordered_msg, "subtype").unwrap();
         write_str(&mut reordered_msg, "StampedSample").unwrap();
 
-        let (mut dec_reordered_msg, rest2) = Branch::from_msg(&reordered_msg).unwrap();
+        let (dec_reordered_msg, rest2) = Branch::from_msg(&reordered_msg).unwrap();
         assert!(rest2.is_empty());
         assert_eq!(dec_reordered_msg.subtype(), "StampedSample");
         assert_eq!(dec_reordered_msg.value_subtype(), Some("ThreeVec"));
         assert_eq!(
-            dec_reordered_msg.extract::<StampedSample<ThreeVec>>().unwrap(),
+            dec_reordered_msg
+                .extract::<StampedSample<ThreeVec>>()
+                .unwrap(),
             stream
         );
     }
 
     #[test]
     fn test_object_branch_error_and_malformed_metadata() {
-        let plain_obj = Branch::new(String::from("Object"), Box::new(Collection::<f64>::empty()));
+        let plain_obj = Branch::new_object(Collection::<f64>::empty());
+        assert_eq!(plain_obj.subtype(), "Object");
+        assert_eq!(plain_obj.value_subtype(), None);
+        assert!(plain_obj.is_empty());
+        assert_eq!(plain_obj.extract::<f64>().unwrap(), Collection::empty());
+
         let err_json = Branch::from_json(&plain_obj.to_json()).err().unwrap();
         assert_eq!(
-            err_json.downcast_ref::<CalcifyError>().map(|e| format!("{}", e)),
-            Some(format!("{}", CalcifyError::ObjectBranchDeserializeError))
+            err_json.downcast_ref::<CalcifyError>(),
+            Some(&CalcifyError::ObjectBranchDeserializeError)
         );
         let err_msg = Branch::from_msg(&plain_obj.to_msg().unwrap()).err().unwrap();
         assert_eq!(
-            err_msg.downcast_ref::<CalcifyError>().map(|e| format!("{}", e)),
-            Some(format!("{}", CalcifyError::ObjectBranchDeserializeError))
+            err_msg.downcast_ref::<CalcifyError>(),
+            Some(&CalcifyError::ObjectBranchDeserializeError)
         );
 
-        let stamped_obj = Branch::new_stamped(
-            String::from("Object"),
-            Box::new(Collection::<StampedSample<f64>>::empty()),
-        );
+        let stamped_obj = Branch::new_stamped_object(Collection::<StampedSample<f64>>::empty());
+        assert_eq!(stamped_obj.subtype(), "StampedSample");
+        assert_eq!(stamped_obj.value_subtype(), Some("Object"));
         let serr_json = Branch::from_json(&stamped_obj.to_json()).err().unwrap();
         assert_eq!(
-            serr_json.downcast_ref::<CalcifyError>().map(|e| format!("{}", e)),
-            Some(format!("{}", CalcifyError::ObjectBranchDeserializeError))
+            serr_json.downcast_ref::<CalcifyError>(),
+            Some(&CalcifyError::ObjectBranchDeserializeError)
         );
-        let serr_msg = Branch::from_msg(&stamped_obj.to_msg().unwrap()).err().unwrap();
+        let serr_msg = Branch::from_msg(&stamped_obj.to_msg().unwrap())
+            .err()
+            .unwrap();
         assert_eq!(
-            serr_msg.downcast_ref::<CalcifyError>().map(|e| format!("{}", e)),
-            Some(format!("{}", CalcifyError::ObjectBranchDeserializeError))
+            serr_msg.downcast_ref::<CalcifyError>(),
+            Some(&CalcifyError::ObjectBranchDeserializeError)
+        );
+
+        // Unknown subtype
+        let bad_sub = Branch::from_json(r#"{"subtype":"Bogus","branch":[]}"#)
+            .err()
+            .unwrap();
+        assert_eq!(
+            bad_sub.downcast_ref::<CalcifyError>(),
+            Some(&CalcifyError::InvalidSubtype(String::from("Bogus")))
         );
 
         // Missing value_subtype for StampedSample

@@ -20,6 +20,7 @@ pub use field::ThreeField;
 pub use field::ThreeVecField;
 
 pub use tree::Branch;
+pub use tree::CalcifyType;
 pub use tree::Tree;
 pub use tree::FeedTree;
 pub use tree::Collection;

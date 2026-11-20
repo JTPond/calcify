@@ -1,13 +1,17 @@
 use std::convert::From;
 use std::error;
 use std::fmt;
+use std::marker::PhantomData;
 
 use rmp::decode::*;
 use rmp::encode::*;
+use serde::de::{self, Deserializer, MapAccess, Visitor};
+use serde::ser::{SerializeStruct, Serializer};
+use serde::{Deserialize, Serialize};
 
 use crate::utils;
 use utils::errors::CalcifyError;
-use utils::serializable::split_json_object;
+use utils::serializable::json_object_entries;
 use utils::{Deserializable, Serializable};
 
 /// A timestamped data sample pairing an `i64` timestamp with any `Serializable` value.
@@ -101,6 +105,86 @@ impl<T: Serializable + fmt::Display> fmt::Display for StampedSample<T> {
     }
 }
 
+impl<T: Serializable + Serialize> Serialize for StampedSample<T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut state = serializer.serialize_struct("StampedSample", 2)?;
+        state.serialize_field("timestamp", &self.timestamp)?;
+        state.serialize_field("value", &self.value)?;
+        state.end()
+    }
+}
+
+impl<'de, T: Serializable + Deserialize<'de>> Deserialize<'de> for StampedSample<T> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        enum Field {
+            Timestamp,
+            Value,
+        }
+
+        impl<'de> Deserialize<'de> for Field {
+            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Field, D::Error> {
+                struct FieldVisitor;
+
+                impl<'de> Visitor<'de> for FieldVisitor {
+                    type Value = Field;
+
+                    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                        f.write_str("`timestamp` or `value`")
+                    }
+
+                    fn visit_str<E: de::Error>(self, value: &str) -> Result<Field, E> {
+                        match value {
+                            "timestamp" => Ok(Field::Timestamp),
+                            "value" => Ok(Field::Value),
+                            _ => Err(de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+
+                deserializer.deserialize_identifier(FieldVisitor)
+            }
+        }
+
+        struct StampedSampleVisitor<T>(PhantomData<T>);
+
+        impl<'de, T: Serializable + Deserialize<'de>> Visitor<'de> for StampedSampleVisitor<T> {
+            type Value = StampedSample<T>;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("struct StampedSample")
+            }
+
+            fn visit_map<V: MapAccess<'de>>(self, mut map: V) -> Result<StampedSample<T>, V::Error> {
+                let mut timestamp: Option<i64> = None;
+                let mut value: Option<T> = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::Timestamp => {
+                            if timestamp.is_some() {
+                                return Err(de::Error::duplicate_field("timestamp"));
+                            }
+                            timestamp = Some(map.next_value()?);
+                        }
+                        Field::Value => {
+                            if value.is_some() {
+                                return Err(de::Error::duplicate_field("value"));
+                            }
+                            value = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let timestamp =
+                    timestamp.ok_or_else(|| de::Error::missing_field("timestamp"))?;
+                let value = value.ok_or_else(|| de::Error::missing_field("value"))?;
+                Ok(StampedSample { timestamp, value })
+            }
+        }
+
+        const FIELDS: &[&str] = &["timestamp", "value"];
+        deserializer.deserialize_struct("StampedSample", FIELDS, StampedSampleVisitor(PhantomData))
+    }
+}
+
 impl<T: Serializable> Serializable for StampedSample<T> {
     fn to_json(&self) -> String {
         format!(
@@ -123,26 +207,23 @@ impl<T: Serializable + Deserializable> Deserializable for StampedSample<T> {
     fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
         let mut timestamp: Option<i64> = None;
         let mut value: Option<T> = None;
-        for (key, val_str) in split_json_object(s)? {
+        for (key, val_str) in json_object_entries(s)? {
             match key.as_str() {
-                "timestamp" => {
-                    if timestamp.is_some() {
-                        return Err(Box::new(CalcifyError::ParseError));
-                    }
-                    timestamp = Some(i64::from_json(val_str)?);
+                "timestamp" => timestamp = Some(i64::from_json(val_str)?),
+                "value" => value = Some(T::from_json(val_str)?),
+                _ => {
+                    return Err(Box::new(CalcifyError::ParseError(format!(
+                        "unexpected StampedSample field '{}'",
+                        key
+                    ))));
                 }
-                "value" => {
-                    if value.is_some() {
-                        return Err(Box::new(CalcifyError::ParseError));
-                    }
-                    value = Some(T::from_json(val_str)?);
-                }
-                _ => return Err(Box::new(CalcifyError::ParseError)),
             }
         }
         match (timestamp, value) {
             (Some(timestamp), Some(value)) => Ok(StampedSample { timestamp, value }),
-            _ => Err(Box::new(CalcifyError::ParseError)),
+            _ => Err(Box::new(CalcifyError::ParseError(String::from(
+                "missing StampedSample field",
+            )))),
         }
     }
 
@@ -152,7 +233,9 @@ impl<T: Serializable + Deserializable> Deserializable for StampedSample<T> {
             let (value, rest) = T::from_msg(bytes)?;
             Ok((StampedSample { timestamp, value }, rest))
         } else {
-            Err(Box::new(CalcifyError::ParseError))
+            Err(Box::new(CalcifyError::ParseError(String::from(
+                "invalid MessagePack StampedSample",
+            ))))
         }
     }
 }
@@ -237,6 +320,10 @@ mod tests {
             expected_point
         );
         assert!(StampedSample::<Point>::from_json(reordered).is_err());
+
+        let rt: StampedSample<Point> =
+            serde_json::from_str(&serde_json::to_string(&expected_point).unwrap()).unwrap();
+        assert_eq!(rt, expected_point);
     }
 
     #[test]

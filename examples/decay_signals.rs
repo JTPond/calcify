@@ -2,8 +2,7 @@ use std::error;
 use std::fs;
 
 use chrono::prelude::*;
-use rand::distributions::{Distribution, Normal, Uniform};
-use rand::thread_rng;
+use rand::distr::{Distribution, Open01, Uniform};
 
 use calcify::io::ToFile;
 use calcify::{Collection, FeedTree, StampedSample, Tree};
@@ -15,6 +14,13 @@ const HALF_LIFE_HOURS: f64 = 8.0;
 const ENERGY_MEAN_MEV: f64 = 5.0;
 const ENERGY_STD_MEV: f64 = 0.75;
 
+fn sample_normal(rng: &mut impl rand::Rng, mean: f64, std_dev: f64) -> f64 {
+    let u1: f64 = Open01.sample(rng);
+    let u2: f64 = Open01.sample(rng);
+    let z = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
+    mean + std_dev * z
+}
+
 fn main() -> Result<(), Box<dyn error::Error>> {
     let tau_secs = HALF_LIFE_HOURS * 3_600.0 / 2.0_f64.ln();
     let cdf_max = 1.0 - (-(DURATION_SECS as f64) / tau_secs).exp();
@@ -24,9 +30,8 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     let start_ms = end_ms - DURATION_MS;
     let run_on = now.with_timezone(&Local).format("%m/%d/%Y %H:%M").to_string();
 
-    let mut rng = thread_rng();
-    let uniform_u = Uniform::new(0.0_f64, 1.0_f64);
-    let energy_dist = Normal::new(ENERGY_MEAN_MEV, ENERGY_STD_MEV);
+    let mut rng = rand::rng();
+    let uniform_u = Uniform::new(0.0_f64, 1.0_f64)?;
 
     let mut events: Collection<StampedSample<f64>> = Collection::empty();
     for _ in 0..NUM_SAMPLES {
@@ -34,7 +39,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
         let offset_secs = -tau_secs * (1.0 - u * cdf_max).ln();
         let ts_ms = (start_ms + (offset_secs * 1_000.0).round() as i64)
             .clamp(start_ms, start_ms + DURATION_MS);
-        let energy_mev = energy_dist.sample(&mut rng).max(0.0);
+        let energy_mev = sample_normal(&mut rng, ENERGY_MEAN_MEV, ENERGY_STD_MEV).max(0.0);
         events.push_sample(ts_ms, energy_mev);
     }
 
@@ -56,8 +61,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     let mean_str = ENERGY_MEAN_MEV.to_string();
     let std_str = ENERGY_STD_MEV.to_string();
 
-    let mut ftree: FeedTree<StampedSample<f64>> =
-        FeedTree::new_stamped("decay_signals_feed", "f64");
+    let mut ftree: FeedTree<StampedSample<f64>> = FeedTree::new_stamped("decay_signals_feed");
     ftree.add_field(
         "Desc",
         "Timestamped Gaussian detector energy feed with exponentially decaying event rate over 24 hours.",
@@ -85,11 +89,11 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     ttree.add_field("EnergyMeanMeV", &mean_str)?;
     ttree.add_field("EnergyStdMeV", &std_str)?;
 
-    ttree.add_stamped_branch("events", events.clone(), "f64")?;
-    ttree.add_stamped_branch("first_6h_events", first_6h.clone(), "f64")?;
-    ttree.add_stamped_branch("last_6h_events", last_6h.clone(), "f64")?;
-    ttree.add_branch("inter_arrival_ms", inter_arrival_ms, "i64")?;
-    ttree.add_branch("energy_hist", energy_hist, "Bin")?;
+    ttree.add_stamped_branch("events", events.clone())?;
+    ttree.add_stamped_branch("first_6h_events", first_6h.clone())?;
+    ttree.add_stamped_branch("last_6h_events", last_6h.clone())?;
+    ttree.add_branch("inter_arrival_ms", inter_arrival_ms)?;
+    ttree.add_branch("energy_hist", energy_hist)?;
 
     fs::create_dir_all("./scratch")?;
     ftree.write_msg("./scratch/decay_signals_feed.msg")?;

@@ -1,22 +1,26 @@
+use std::error;
+use std::fmt;
+use std::iter;
 use std::ops::Add;
 use std::ops::AddAssign;
-use std::ops::Sub;
-use std::ops::SubAssign;
 use std::ops::Mul;
 use std::ops::Neg;
-use std::iter;
-use std::fmt;
-use std::error;
+use std::ops::Sub;
+use std::ops::SubAssign;
 
-use rand::thread_rng;
-use rand::distributions::{Distribution, Uniform};
+#[cfg(feature = "rand")]
+use rand::distr::{Distribution, Uniform};
+
+use serde::de::{self, Deserializer, MapAccess, Visitor};
+use serde::ser::{SerializeStruct, Serializer};
+use serde::{Deserialize, Serialize};
 
 use crate::utils;
-use utils::{Serializable, Deserializable};
 use utils::errors::CalcifyError;
+use utils::{Deserializable, Serializable};
 
-use rmp::encode::*;
 use rmp::decode::*;
+use rmp::encode::*;
 
 /// Three Vector
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -83,13 +87,14 @@ impl ThreeVec {
     /// use calcify::ThreeVec;
     /// let vec3 = ThreeVec::random(10.0);
     /// ```
+    #[cfg(feature = "rand")]
     pub fn random(max: f64) -> ThreeVec {
-        let between = Uniform::new_inclusive(-1.0f64,1.0f64);
-        let mut rng = thread_rng();
+        let between = Uniform::new_inclusive(-1.0_f64, 1.0_f64).unwrap();
+        let mut rng = rand::rng();
         ThreeVec {
-            x0: between.sample(&mut rng)*max,
-            x1: between.sample(&mut rng)*max,
-            x2: between.sample(&mut rng)*max,
+            x0: between.sample(&mut rng) * max,
+            x1: between.sample(&mut rng) * max,
+            x2: between.sample(&mut rng) * max,
         }
     }
 
@@ -151,12 +156,102 @@ impl fmt::Display for ThreeVec {
     }
 }
 
+impl Serialize for ThreeVec {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut state = serializer.serialize_struct("ThreeVec", 3)?;
+        state.serialize_field("x0", &self.x0)?;
+        state.serialize_field("x1", &self.x1)?;
+        state.serialize_field("x2", &self.x2)?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for ThreeVec {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        enum Field {
+            X0,
+            X1,
+            X2,
+        }
+
+        impl<'de> Deserialize<'de> for Field {
+            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Field, D::Error> {
+                struct FieldVisitor;
+
+                impl<'de> Visitor<'de> for FieldVisitor {
+                    type Value = Field;
+
+                    fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                        f.write_str("`x0`, `x1`, or `x2`")
+                    }
+
+                    fn visit_str<E: de::Error>(self, value: &str) -> Result<Field, E> {
+                        match value {
+                            "x0" => Ok(Field::X0),
+                            "x1" => Ok(Field::X1),
+                            "x2" => Ok(Field::X2),
+                            _ => Err(de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+
+                deserializer.deserialize_identifier(FieldVisitor)
+            }
+        }
+
+        struct ThreeVecVisitor;
+
+        impl<'de> Visitor<'de> for ThreeVecVisitor {
+            type Value = ThreeVec;
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("struct ThreeVec")
+            }
+
+            fn visit_map<V: MapAccess<'de>>(self, mut map: V) -> Result<ThreeVec, V::Error> {
+                let mut x0: Option<f64> = None;
+                let mut x1: Option<f64> = None;
+                let mut x2: Option<f64> = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::X0 => {
+                            if x0.is_some() {
+                                return Err(de::Error::duplicate_field("x0"));
+                            }
+                            x0 = Some(map.next_value()?);
+                        }
+                        Field::X1 => {
+                            if x1.is_some() {
+                                return Err(de::Error::duplicate_field("x1"));
+                            }
+                            x1 = Some(map.next_value()?);
+                        }
+                        Field::X2 => {
+                            if x2.is_some() {
+                                return Err(de::Error::duplicate_field("x2"));
+                            }
+                            x2 = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let x0 = x0.ok_or_else(|| de::Error::missing_field("x0"))?;
+                let x1 = x1.ok_or_else(|| de::Error::missing_field("x1"))?;
+                let x2 = x2.ok_or_else(|| de::Error::missing_field("x2"))?;
+                Ok(ThreeVec { x0, x1, x2 })
+            }
+        }
+
+        const FIELDS: &[&str] = &["x0", "x1", "x2"];
+        deserializer.deserialize_struct("ThreeVec", FIELDS, ThreeVecVisitor)
+    }
+}
+
 impl Serializable for ThreeVec {
     fn to_json(&self) -> String {
-        format!("{{\"x0\":{},\"x1\":{},\"x2\":{}}}", self.x0(), self.x1(), self.x2())
+        serde_json::to_string(self).unwrap()
     }
 
-    fn to_msg(&self) -> Result<Vec<u8>,ValueWriteError> {
+    fn to_msg(&self) -> Result<Vec<u8>, ValueWriteError> {
         let mut buf = Vec::with_capacity(4);
         write_array_len(&mut buf, 3)?;
         write_f64(&mut buf, *self.x0())?;
@@ -167,32 +262,21 @@ impl Serializable for ThreeVec {
 }
 
 impl Deserializable for ThreeVec {
-
     fn from_json(s: &str) -> Result<Self, Box<dyn error::Error>> {
-        let mut x0: f64 = f64::NAN;
-        let mut x1: f64 = f64::NAN;
-        let mut x2: f64 = f64::NAN;
-        for dim in s.trim_matches(|p| p == '{' || p == '}' ).split(',') {
-            let n_v: Vec<&str> = dim.split(':').collect();
-            match n_v[0] {
-                "\"x0\"" => x0 = n_v[1].parse::<f64>()?,
-                "\"x1\"" => x1 = n_v[1].parse::<f64>()?,
-                "\"x2\"" => x2 = n_v[1].parse::<f64>()?,
-                _ => return Err(Box::new(CalcifyError::ParseError)),
-            }
-        }
-        Ok(ThreeVec{x0,x1,x2})
+        Ok(serde_json::from_str(s)?)
     }
 
-    fn from_msg(mut bytes: &[u8]) -> Result<(Self,&[u8]), Box<dyn error::Error>> {
-        if let Ok(3) = read_array_len(&mut bytes){
-            let mut x: [f64;3] = [f64::NAN;3];
+    fn from_msg(mut bytes: &[u8]) -> Result<(Self, &[u8]), Box<dyn error::Error>> {
+        if let Ok(3) = read_array_len(&mut bytes) {
+            let mut x: [f64; 3] = [f64::NAN; 3];
             for item in &mut x {
                 *item = read_f64(&mut bytes)?;
             }
-            Ok((ThreeVec::from(&x),bytes))
+            Ok((ThreeVec::from(&x), bytes))
         } else {
-            Err(Box::new(CalcifyError::ParseError))
+            Err(Box::new(CalcifyError::ParseError(String::from(
+                "invalid MessagePack ThreeVec",
+            ))))
         }
     }
 }
@@ -441,9 +525,20 @@ mod tests {
 
     #[test]
     fn test_parse() {
-        let xx = ThreeVec::new(1.0,1.0,1.0);
+        let xx = ThreeVec::new(1.0, 2.0, -3.5);
         let pp = xx.to_json();
-        assert_eq!(ThreeVec::from_json(&pp).unwrap(),xx);
+        assert_eq!(ThreeVec::from_json(&pp).unwrap(), xx);
+        assert_eq!(
+            ThreeVec::from_json(r#" { "x2" : -3.5 , "x0" : 1.0 , "x1" : 2.0 } "#).unwrap(),
+            xx
+        );
+        let rt: ThreeVec = serde_json::from_str(&serde_json::to_string(&xx).unwrap()).unwrap();
+        assert_eq!(rt, xx);
+
+        assert!(ThreeVec::from_json(r#"{"x0"}"#).is_err());
+        assert!(ThreeVec::from_json(r#"{"x0":1.0,"x1":2.0}"#).is_err());
+        assert!(ThreeVec::from_json(r#"{"x0":1.0,"x1":2.0,"x2":3.0,"x3":4.0}"#).is_err());
+        assert!(ThreeVec::from_json(r#"{"x0":1.0,"x0":2.0,"x1":3.0,"x2":4.0}"#).is_err());
     }
 
     #[test]
